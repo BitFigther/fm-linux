@@ -1,17 +1,25 @@
+
 CC=gcc
 CFLAGS=-Wall -O2 -D_GNU_SOURCE
 LDFLAGS=-lssl -lcrypto
 
 TARGET=fm
+BUILDDIR=build
 SOURCE=fm.c
+BIN=$(BUILDDIR)/$(TARGET)
 
-$(TARGET): $(SOURCE)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCE) $(LDFLAGS)
+all: $(BUILDDIR) $(BIN)
+
+$(BUILDDIR):
+	mkdir -p $(BUILDDIR)
+
+$(BIN): $(SOURCE)
+	$(CC) $(CFLAGS) -o $(BIN) $(SOURCE) $(LDFLAGS)
 
 clean:
-	rm -f $(TARGET)
+	rm -rf $(BUILDDIR)
 
-install: $(TARGET)
-	sudo cp $(TARGET) /usr/local/bin/
+install: $(BIN)
+	sudo cp $(BIN) /usr/local/bin/
 
-.PHONY: clean install
+.PHONY: all clean install

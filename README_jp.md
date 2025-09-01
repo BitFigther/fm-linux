@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # fm-linux
 =======
 
@@ -124,4 +123,3 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 ## ライセンス
 
 MIT License
->>>>>>> 551cce5 (Initial commit)

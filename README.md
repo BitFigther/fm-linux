@@ -1,123 +1,122 @@
+# File Monitor - File Change Detection Tool (English)
 
-# File Monitor - システムファイル変更検出ツール
+## Overview
 
-## 概要
+This C program detects changes in all files of your system, useful for verifying file integrity after middleware installation or system updates.
 
-ミドルウェア導入後などにシステム全体のファイルに変更があったかを高速に検出するためのC言語プログラムです。
+## Features
 
-## 特徴
+- **Fast processing**: Implemented in C for efficient scanning of large numbers of files
+- **Strict verification**: Detects changes using MD5 hash
+- **Lightweight**: Records only file size, modification time, and MD5 hash
+- **Flexible**: Can target any directory
 
-- **高速処理**: C言語で実装され、大量のファイルを効率的にスキャン
-- **厳密な検証**: MD5ハッシュによる内容の変更検出
-- **軽量**: ファイルサイズ、修正時間、MD5ハッシュのみを記録
-- **柔軟性**: 任意のディレクトリを対象にできる
+## Required Libraries
 
-## 必要なライブラリ
+- OpenSSL (`libssl-dev` or `openssl-devel`)
+  - Compatible with OpenSSL 1.1.x and 3.0.x
 
-- OpenSSL (`libssl-dev`または`openssl-devel`)
-  - OpenSSL 1.1.x および 3.0.x に対応
-
-### Ubuntu/Debianの場合
+### For Ubuntu/Debian
 ```bash
 sudo apt-get install libssl-dev
 ```
 
-### CentOS/RHELの場合
+### For CentOS/RHEL
 ```bash
 sudo yum install openssl-devel
-# または
+# or
 sudo dnf install openssl-devel
 ```
 
-## コンパイル
+## Build
 
 ```bash
 make
 ```
 
-または手動で:
+Or manually:
 ```bash
-gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
+gcc -Wall -O2 -D_GNU_SOURCE -o fm fm.c -lssl -lcrypto
 ```
 
-## 使用方法
+## Usage
 
-### 1. ベースライン作成
-ミドルウェア導入前にベースラインを作成:
+### 1. Create Baseline
+Before middleware installation, create a baseline:
 ```bash
-./file_monitor --baseline /
+./fm --baseline /
 ```
 
-特定のディレクトリのみを対象にする場合:
+To target a specific directory:
 ```bash
-./file_monitor --baseline /usr
-./file_monitor --baseline /etc
+./fm --baseline /usr
+./fm --baseline /etc
 ```
 
-### 2. 変更チェック
-ミドルウェア導入後に変更をチェック:
+### 2. Check for Changes
+After installation, check for changes:
 ```bash
-./file_monitor --check /
+./fm --check /
 ```
 
-### 3. ベースラインリセット
+### 3. Reset Baseline
 ```bash
-./file_monitor --reset
+./fm --reset
 ```
 
-## 出力例
+## Output Example
 
-### ベースライン作成時
+### When creating baseline
 ```
-ベースライン作成中: /usr
-処理中...
-ベースライン保存完了: 15432 ファイル
-```
-
-### 変更検出時
-```
-変更チェック中: /usr
-ベースライン読み込み完了: 15432 ファイル (作成日時: Mon Sep  2 10:30:45 2025)
-処理中...
-変更検出: /usr/bin/example
-  修正時間: 1693123845 -> 1693127445
-  サイズ: 123456 -> 124000
-  MD5ハッシュ: abc123def456... -> def456abc123...
-新規ファイル: /usr/lib/newfile.so (MD5: 789abc012def...)
-
-=== 結果 ===
-変更検出: 2 件のファイルに変更があります
+Creating baseline: /usr
+Processing...
+Baseline saved: 15432 files
 ```
 
-### 変更なしの場合
+### When changes are detected
 ```
-=== 結果 ===
-変更なし: ファイルに変更はありませんでした
+Checking for changes: /usr
+Baseline loaded: 15432 files (Created: Mon Sep  2 10:30:45 2025)
+Processing...
+Change detected: /usr/bin/example
+  Modified time: 1693123845 -> 1693127445
+  Size: 123456 -> 124000
+  MD5 hash: abc123def456... -> def456abc123...
+New file: /usr/lib/newfile.so (MD5: 789abc012def...)
+
+=== Result ===
+Changes detected: 2 file(s) changed
 ```
 
-## 除外パターン
+### When no changes
+```
+=== Result ===
+No changes: No files were changed
+```
 
-以下のディレクトリは自動的に除外されます:
+## Excluded Patterns
+
+The following directories are automatically excluded:
 - `/tmp/`
 - `/var/log/`
 - `/proc/`
 - `/sys/`
 - `/dev/`
 
-## 終了コード
+## Exit Codes
 
-- `0`: 変更なし
-- `1`: エラー
-- `2`: 変更あり
+- `0`: No changes
+- `1`: Error
+- `2`: Changes detected
 
-## 注意事項
+## Notes
 
-- ベースラインファイルは `/tmp/file_monitor_baseline.dat` に保存されます
-- 大規模なシステムでは処理に時間がかかる場合があります
-- MD5ハッシュ計算により、ファイル内容の厳密な変更検出が可能ですが、処理時間が増加します
-- 読み取り権限のないファイルは自動的にスキップされます
-- OpenSSL 3.0環境でも動作します（EVP APIを使用）
+- Baseline file is saved as `/tmp/fm_baseline.dat`
+- May take time for large systems
+- MD5 hash calculation enables strict change detection but increases processing time
+- Files without read permission are skipped automatically
+- Works with OpenSSL 3.0 (uses EVP API)
 
-## ライセンス
+## License
 
 MIT License

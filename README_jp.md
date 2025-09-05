@@ -116,13 +116,13 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 
 ```
 Usage:
-  ./file_monitor --baseline [directory(,directory...)] [--exclude path(,path...)] : ベースライン作成 (MD5ハッシュ)
-  ./file_monitor --check [directory(,directory...)] [--exclude path(,path...)]    : 変更チェック (厳密なMD5チェック)
-  ./file_monitor --reset                                                        : ベースラインリセット
+  ./file_monitor --baseline [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path] : ベースライン作成 (MD5ハッシュ)
+  ./file_monitor --check [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path]    : 変更チェック (厳密なMD5チェック)
+  ./file_monitor --reset [--baseline-file path]                                                        : ベースラインリセット
 
 Examples:
-  ./file_monitor --baseline /,/usr --exclude /tmp/,/var/log/     : /と/usrを対象、/tmp/・/var/log/を除外
-  ./file_monitor --check /etc,/opt --exclude /proc/              : /etcと/optを対象、/proc/を除外
+  ./file_monitor --baseline /,/usr --exclude /tmp/,/var/log/ --baseline-file /tmp/mybase.dat     : /と/usrを対象、/tmp/・/var/log/を除外、ベースラインファイルは /tmp/mybase.dat
+  ./file_monitor --check /etc,/opt --exclude /proc/ --baseline-file /tmp/mybase.dat              : /etcと/optを対象、/proc/を除外、/tmp/mybase.datを使用
   ./file_monitor --baseline /usr                                : /usrのみを対象
 
 Note: MD5ハッシュ計算は厳密な変更検出が可能ですが、処理時間が増加します。
@@ -137,7 +137,7 @@ Note: MD5ハッシュ計算は厳密な変更検出が可能ですが、処理�
 
 ## 注意事項
 
-- ベースラインファイルは `/tmp/file_monitor_baseline.dat` に保存されます
+- デフォルトのベースラインファイルは `/tmp/file_monitor_baseline.dat` ですが、`--baseline-file` オプションで変更可能です
 - 大規模なシステムでは処理に時間がかかる場合があります
 - MD5ハッシュ計算により、ファイル内容の厳密な変更検出が可能ですが、処理時間が増加します
 - 読み取り権限のないファイルは自動的にスキップされます

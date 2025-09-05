@@ -24,8 +24,20 @@ int baseline_capacity = 0;
 int changes_detected = 0;
 time_t baseline_time = 0;
 
-// Path to baseline file
-#define BASELINE_FILE "/tmp/fm_baseline.dat"
+
+// Path to baseline file (with timestamp)
+char baseline_file_path_buf[256] = "";
+char *baseline_file_path = baseline_file_path_buf;
+
+void set_default_baseline_file_path() {
+    time_t now = time(NULL);
+    struct tm tm;
+    localtime_r(&now, &tm);
+    snprintf(baseline_file_path_buf, sizeof(baseline_file_path_buf),
+             "/tmp/fm_baseline_%04d%02d%02d_%02d%02d%02d.dat",
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+             tm.tm_hour, tm.tm_min, tm.tm_sec);
+}
 
 // Function to calculate MD5 hash of a file (OpenSSL 3.0 compatible)
 int calculate_md5(const char *filepath, unsigned char *result) {
@@ -159,7 +171,7 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
 
 // Save baseline to file
 void save_baseline() {
-    FILE *fp = fopen(BASELINE_FILE, "wb");
+    FILE *fp = fopen(baseline_file_path, "wb");
     if (!fp) {
         perror("Failed to create baseline file");
         return;
@@ -184,7 +196,7 @@ void save_baseline() {
 
 // Load baseline from file
 int load_baseline() {
-    FILE *fp = fopen(BASELINE_FILE, "rb");
+    FILE *fp = fopen(baseline_file_path, "rb");
     if (!fp) {
         return 0; // Baseline file does not exist
     }
@@ -245,12 +257,13 @@ void print_usage(const char *program_name) {
 }
 
 int main(int argc, char *argv[]) {
+    set_default_baseline_file_path();
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;
     }
     if (strcmp(argv[1], "--reset") == 0) {
-        if (unlink(BASELINE_FILE) == 0) {
+        if (unlink(baseline_file_path) == 0) {
             printf("Baseline file deleted\n");
         } else {
             printf("Baseline file not found\n");

@@ -285,17 +285,19 @@ void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dir
 // Print usage
 void print_usage(const char *program_name) {
     printf("Usage:\n");
-    printf("  %s --baseline [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path] : Create baseline (with MD5 hash)\n", program_name);
-    printf("  %s --check [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path]    : Check for changes (strict MD5 check)\n", program_name);
-    printf("  %s --reset [--baseline-file path]                                                    : Reset baseline\n", program_name);
+    printf("  %s --baseline|-B [directory(,directory...)] [--exclude|-e path(,path...)] [--baseline-file|-b path] : Create baseline (with MD5 hash)\n", program_name);
+    printf("  %s --check|-c [directory(,directory...)] [--exclude|-e path(,path...)] [--baseline-file|-b path]    : Check for changes (strict MD5 check)\n", program_name);
+    printf("  %s --reset|-r [--baseline-file|-b path]                                                    : Reset baseline\n", program_name);
     printf("\n");
     printf("Examples:\n");
     printf("  %s --baseline /,/usr --exclude /tmp/,/var/log/ --baseline-file /tmp/mybase.dat     : Create baseline for / and /usr, excluding /tmp/, /var/log/, baseline file is /tmp/mybase.dat\n", program_name);
+    printf("  %s -B /,/usr -e /tmp/,/var/log/ -b /tmp/mybase.dat                                 : (same as above, short options)\n", program_name);
     printf("  %s --check /etc,/opt --exclude /proc/ --baseline-file /tmp/mybase.dat              : Check for changes in /etc and /opt, excluding /proc/, using /tmp/mybase.dat\n", program_name);
+    printf("  %s -c /etc,/opt -e /proc/ -b /tmp/mybase.dat                                      : (same as above, short options)\n", program_name);
     printf("  %s --baseline /usr                                : Create baseline for /usr\n", program_name);
     printf("\n");
     printf("Note: MD5 hash calculation may take time, but enables strict change detection.\n");
-    printf("      You can specify multiple directories and --exclude multiple times, each with a comma-separated list.\n");
+    printf("      You can specify multiple directories and --exclude/-e multiple times, each with a comma-separated list.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -308,7 +310,7 @@ int main(int argc, char *argv[]) {
     exclude_patterns = NULL;
     // まず--baseline-fileを探す
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--baseline-file") == 0 && i + 1 < argc) {
+        if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
             baseline_file_path = argv[i+1];
             break;
         }
@@ -322,7 +324,7 @@ int main(int argc, char *argv[]) {
         print_usage(argv[0]);
         return 1;
     }
-    if (strcmp(argv[1], "--reset") == 0) {
+    if (strcmp(argv[1], "--reset") == 0 || strcmp(argv[1], "-r") == 0) {
         if (unlink(baseline_file_path) == 0) {
             printf("Baseline file deleted\n");
         } else {
@@ -333,18 +335,19 @@ int main(int argc, char *argv[]) {
 
     // 残りのオプション解析
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--exclude") == 0 && i + 1 < argc) {
+        if ((strcmp(argv[i], "--exclude") == 0 || strcmp(argv[i], "-e") == 0) && i + 1 < argc) {
             add_exclude_patterns(argv[++i]);
-        } else if (strcmp(argv[i], "--baseline-file") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
             i++; // すでに処理済みなのでスキップ
-        } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "--check") == 0) {
+        } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "-B") == 0 || strcmp(argv[i], "--check") == 0 || strcmp(argv[i], "-c") == 0) {
             // skip, handled below
         } else if (argv[i][0] != '-') {
             add_target_dirs(argv[i], &target_dirs, &target_dirs_count);
         }
     }
 
-    if (target_dirs_count == 0 || (strcmp(argv[1], "--baseline") != 0 && strcmp(argv[1], "--check") != 0)) {
+    if (target_dirs_count == 0 || 
+        !(strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0 || strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-c") == 0)) {
         print_usage(argv[0]);
         if (exclude_patterns) {
             for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);
@@ -355,7 +358,7 @@ int main(int argc, char *argv[]) {
     }
 
     int ret = 0;
-    if (strcmp(argv[1], "--baseline") == 0) {
+    if (strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0) {
         printf("Creating baseline for:");
         for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
         printf("\nProcessing...\n");
@@ -369,7 +372,7 @@ int main(int argc, char *argv[]) {
         }
         if (!err) save_baseline();
         ret = err;
-    } else if (strcmp(argv[1], "--check") == 0) {
+    } else if (strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-c") == 0) {
         printf("Checking for changes in:");
         for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
         printf("\n");

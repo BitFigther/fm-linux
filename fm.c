@@ -23,6 +23,21 @@ int baseline_count = 0;
 int baseline_capacity = 0;
 int changes_detected = 0;
 time_t baseline_time = 0;
+// Exclude patterns (from args)
+char **exclude_patterns = NULL;
+int exclude_patterns_count = 0;
+
+// カンマ区切り文字列を分割してexclude_patternsに追加
+void add_exclude_patterns(const char *arg) {
+    char *copy = strdup(arg);
+    char *token = strtok(copy, ",");
+    while (token) {
+        exclude_patterns = realloc(exclude_patterns, sizeof(char*) * (exclude_patterns_count + 1));
+        exclude_patterns[exclude_patterns_count++] = strdup(token);
+        token = strtok(NULL, ",");
+    }
+    free(copy);
+}
 
 // Path to baseline file
 #define BASELINE_FILE "/tmp/fm_baseline.dat"
@@ -104,13 +119,11 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
     if (typeflag != FTW_F) {
         return 0;
     }
-    // Exclude temporary, log, and system files
-    if (strstr(fpath, "/tmp/") || 
-        strstr(fpath, "/var/log/") ||
-        strstr(fpath, "/proc/") ||
-        strstr(fpath, "/sys/") ||
-        strstr(fpath, "/dev/")) {
-        return 0;
+    // Exclude by user-specified patterns
+    for (int i = 0; i < exclude_patterns_count; i++) {
+        if (strstr(fpath, exclude_patterns[i])) {
+            return 0;
+        }
     }
     // Calculate MD5 hash
     unsigned char md5[MD5_DIGEST_LENGTH];
@@ -232,16 +245,17 @@ int load_baseline() {
 // Print usage
 void print_usage(const char *program_name) {
     printf("Usage:\n");
-    printf("  %s --baseline [directory]  : Create baseline (with MD5 hash)\n", program_name);
-    printf("  %s --check [directory]     : Check for changes (strict MD5 check)\n", program_name);
-    printf("  %s --reset                 : Reset baseline\n", program_name);
+    printf("  %s --baseline [directory] [--exclude path ...] : Create baseline (with MD5 hash)\n", program_name);
+    printf("  %s --check [directory] [--exclude path ...]    : Check for changes (strict MD5 check)\n", program_name);
+    printf("  %s --reset                                   : Reset baseline\n", program_name);
     printf("\n");
-    printf("Examples:\n");
-    printf("  %s --baseline /            : Create baseline for entire system\n", program_name);
-    printf("  %s --check /               : Check for changes in entire system\n", program_name);
-    printf("  %s --baseline /usr         : Create baseline for /usr\n", program_name);
-    printf("\n");
-    printf("Note: MD5 hash calculation may take time, but enables strict change detection.\n");
+        printf("Examples:\n");
+        printf("  %s --baseline / --exclude /tmp/,/var/log/,/proc/   : Create baseline for entire system, excluding /tmp/, /var/log/, /proc/\n", program_name);
+        printf("  %s --check / --exclude /tmp/,/var/log/            : Check for changes, excluding /tmp/, /var/log/\n", program_name);
+        printf("  %s --baseline /usr                                : Create baseline for /usr\n", program_name);
+        printf("\n");
+        printf("Note: MD5 hash calculation may take time, but enables strict change detection.\n");
+        printf("      You can specify --exclude multiple times, each with a comma-separated list.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -257,50 +271,74 @@ int main(int argc, char *argv[]) {
         }
         return 0;
     }
-    if (argc < 3) {
+
+    // --excludeオプション解析
+    const char *target_dir = NULL;
+    exclude_patterns_count = 0;
+    exclude_patterns = NULL;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--exclude") == 0 && i + 1 < argc) {
+            add_exclude_patterns(argv[++i]);
+        } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "--check") == 0) {
+            // skip, handled below
+        } else if (!target_dir && argv[i][0] != '-') {
+            target_dir = argv[i];
+        }
+    }
+
+    if (!target_dir || (strcmp(argv[1], "--baseline") != 0 && strcmp(argv[1], "--check") != 0)) {
         print_usage(argv[0]);
+        if (exclude_patterns) free(exclude_patterns);
         return 1;
     }
-    const char *target_dir = argv[2];
+
+    int ret = 0;
     if (strcmp(argv[1], "--baseline") == 0) {
         printf("Creating baseline: %s\n", target_dir);
         printf("Processing...\n");
         // Scan file tree and create baseline
         if (nftw(target_dir, scan_file, 20, FTW_PHYS) == -1) {
             perror("Directory scan error");
-            return 1;
+            ret = 1;
+        } else {
+            save_baseline();
         }
-        save_baseline();
     } else if (strcmp(argv[1], "--check") == 0) {
         printf("Checking for changes: %s\n", target_dir);
         if (!load_baseline()) {
             printf("Error: Baseline file not found.\n");
             printf("Please create a baseline first using --baseline option.\n");
-            return 1;
-        }
-        printf("Processing...\n");
-        changes_detected = 0;
-        // Scan file tree and check for changes
-        if (nftw(target_dir, scan_file, 20, FTW_PHYS) == -1) {
-            perror("Directory scan error");
-            return 1;
-        }
-        printf("\n=== Result ===\n");
-        if (changes_detected > 0) {
-            printf("Changes detected: %d file(s) changed\n", changes_detected);
-            return 2; // Exit code for changes detected
+            ret = 1;
         } else {
-            printf("No changes: No files were changed\n");
-            return 0; // Exit code for no changes
+            printf("Processing...\n");
+            changes_detected = 0;
+            // Scan file tree and check for changes
+            if (nftw(target_dir, scan_file, 20, FTW_PHYS) == -1) {
+                perror("Directory scan error");
+                ret = 1;
+            } else {
+                printf("\n=== Result ===\n");
+                if (changes_detected > 0) {
+                    printf("Changes detected: %d file(s) changed\n", changes_detected);
+                    ret = 2; // Exit code for changes detected
+                } else {
+                    printf("No changes: No files were changed\n");
+                    ret = 0; // Exit code for no changes
+                }
+            }
         }
     } else {
         print_usage(argv[0]);
-        return 1;
+        ret = 1;
     }
     // Free memory
     for (int i = 0; i < baseline_count; i++) {
         free(baseline[i].filepath);
     }
     free(baseline);
-    return 0;
+    for (int i = 0; i < exclude_patterns_count; i++) {
+        free(exclude_patterns[i]);
+    }
+    free(exclude_patterns);
+    return ret;
 }

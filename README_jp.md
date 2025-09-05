@@ -1,11 +1,12 @@
 # fm-linux
 =======
 
-# File Monitor - システムファイル変更検出ツール
+# File Monitor - システム変更検出ツール
 
 ## 概要
 
-ミドルウェア導入後などにシステム全体のファイルに変更があったかを高速に検出するためのC言語プログラムです。
+ソフトウエア導入、パッチ適用などにシステム全体のファイルに変更があったかを高速に検出するためのlinuxコマンドです。
+
 
 ## 特徴
 
@@ -45,7 +46,7 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 ## 使用方法
 
 ### 1. ベースライン作成
-ミドルウェア導入前にベースラインを作成:
+作業前にベースラインを作成:
 ```bash
 ./file_monitor --baseline /
 ```
@@ -64,7 +65,7 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 
 ### 3. ベースラインリセット
 ```bash
-./file_monitor --reset
+./file_monitor --reset --baseline-file path
 ```
 
 ## 出力例
@@ -114,7 +115,8 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 
 ## 注意事項
 
-- ベースラインファイルは `/tmp/file_monitor_baseline.dat` に保存されます
+- ベースラインファイルはデフォルトで `/tmp/file_monitor_baseline_YYYYMMDD_HHMMSS.dat` のようにタイムスタンプ付きで保存されます。  
+  `--baseline-file`（または `-b`）オプションで任意の保存先を指定することもできます。
 - 大規模なシステムでは処理に時間がかかる場合があります
 - MD5ハッシュ計算により、ファイル内容の厳密な変更検出が可能ですが、処理時間が増加します
 - 読み取り権限のないファイルは自動的にスキップされます

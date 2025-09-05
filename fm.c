@@ -30,6 +30,18 @@ time_t baseline_time = 0;
 char **exclude_patterns = NULL;
 int exclude_patterns_count = 0;
 
+// カンマ区切り文字列を分割してexclude_patternsに追加
+void add_exclude_patterns(const char *arg) {
+    char *copy = strdup(arg);
+    char *token = strtok(copy, ",");
+    while (token) {
+        exclude_patterns = realloc(exclude_patterns, sizeof(char*) * (exclude_patterns_count + 1));
+        exclude_patterns[exclude_patterns_count++] = strdup(token);
+        token = strtok(NULL, ",");
+    }
+    free(copy);
+}
+
 
 // Path to baseline file (with timestamp)
 char baseline_file_path_buf[256] = "";
@@ -286,6 +298,8 @@ void print_usage(const char *program_name) {
 
 int main(int argc, char *argv[]) {
     set_default_baseline_file_path();
+    const char **target_dirs = NULL;
+    int target_dirs_count = 0;
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;

@@ -39,8 +39,8 @@ void add_exclude_patterns(const char *arg) {
     free(copy);
 }
 
-// Path to baseline file
-#define BASELINE_FILE "/tmp/fm_baseline.dat"
+// Path to baseline file (default)
+char *baseline_file_path = "/tmp/fm_baseline.dat";
 
 // Function to calculate MD5 hash of a file (OpenSSL 3.0 compatible)
 int calculate_md5(const char *filepath, unsigned char *result) {
@@ -180,7 +180,7 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
 
 // Save baseline to file
 void save_baseline() {
-    FILE *fp = fopen(BASELINE_FILE, "wb");
+    FILE *fp = fopen(baseline_file_path, "wb");
     if (!fp) {
         perror("Failed to create baseline file");
         return;
@@ -205,7 +205,7 @@ void save_baseline() {
 
 // Load baseline from file
 int load_baseline() {
-    FILE *fp = fopen(BASELINE_FILE, "rb");
+    FILE *fp = fopen(baseline_file_path, "rb");
     if (!fp) {
         return 0; // Baseline file does not exist
     }
@@ -264,13 +264,13 @@ void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dir
     free(copy);
 }
     printf("Usage:\n");
-    printf("  %s --baseline [directory(,directory...)] [--exclude path(,path...)] : Create baseline (with MD5 hash)\n", program_name);
-    printf("  %s --check [directory(,directory...)] [--exclude path(,path...)]    : Check for changes (strict MD5 check)\n", program_name);
-    printf("  %s --reset                                                    : Reset baseline\n", program_name);
+    printf("  %s --baseline [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path] : Create baseline (with MD5 hash)\n", program_name);
+    printf("  %s --check [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path]    : Check for changes (strict MD5 check)\n", program_name);
+    printf("  %s --reset [--baseline-file path]                                                    : Reset baseline\n", program_name);
     printf("\n");
     printf("Examples:\n");
-    printf("  %s --baseline /,/usr --exclude /tmp/,/var/log/     : Create baseline for / and /usr, excluding /tmp/, /var/log/\n", program_name);
-    printf("  %s --check /etc,/opt --exclude /proc/              : Check for changes in /etc and /opt, excluding /proc/\n", program_name);
+    printf("  %s --baseline /,/usr --exclude /tmp/,/var/log/ --baseline-file /tmp/mybase.dat     : Create baseline for / and /usr, excluding /tmp/, /var/log/, baseline file is /tmp/mybase.dat\n", program_name);
+    printf("  %s --check /etc,/opt --exclude /proc/ --baseline-file /tmp/mybase.dat              : Check for changes in /etc and /opt, excluding /proc/, using /tmp/mybase.dat\n", program_name);
     printf("  %s --baseline /usr                                : Create baseline for /usr\n", program_name);
     printf("\n");
     printf("Note: MD5 hash calculation may take time, but enables strict change detection.\n");
@@ -283,7 +283,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     if (strcmp(argv[1], "--reset") == 0) {
-        if (unlink(BASELINE_FILE) == 0) {
+        if (unlink(baseline_file_path) == 0) {
             printf("Baseline file deleted\n");
         } else {
             printf("Baseline file not found\n");
@@ -300,6 +300,8 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--exclude") == 0 && i + 1 < argc) {
             add_exclude_patterns(argv[++i]);
+        } else if (strcmp(argv[i], "--baseline-file") == 0 && i + 1 < argc) {
+            baseline_file_path = argv[++i];
         } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "--check") == 0) {
             // skip, handled below
         } else if (argv[i][0] != '-') {

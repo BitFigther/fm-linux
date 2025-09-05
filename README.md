@@ -118,13 +118,13 @@ The following directories are automatically excluded:
 
 ```
 Usage:
-  ./fm --baseline [directory(,directory...)] [--exclude path(,path...)] : Create baseline (with MD5 hash)
-  ./fm --check [directory(,directory...)] [--exclude path(,path...)]    : Check for changes (strict MD5 check)
-  ./fm --reset                                                        : Reset baseline
+  ./fm --baseline [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path] : Create baseline (with MD5 hash)
+  ./fm --check [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path]    : Check for changes (strict MD5 check)
+  ./fm --reset [--baseline-file path]                                                        : Reset baseline
 
 Examples:
-  ./fm --baseline /,/usr --exclude /tmp/,/var/log/     : Create baseline for / and /usr, excluding /tmp/, /var/log/
-  ./fm --check /etc,/opt --exclude /proc/              : Check for changes in /etc and /opt, excluding /proc/
+  ./fm --baseline /,/usr --exclude /tmp/,/var/log/ --baseline-file /tmp/mybase.dat     : Create baseline for / and /usr, excluding /tmp/, /var/log/, baseline file is /tmp/mybase.dat
+  ./fm --check /etc,/opt --exclude /proc/ --baseline-file /tmp/mybase.dat              : Check for changes in /etc and /opt, excluding /proc/, using /tmp/mybase.dat
   ./fm --baseline /usr                                : Create baseline for /usr
 
 Note: MD5 hash calculation may take time, but enables strict change detection.

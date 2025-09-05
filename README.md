@@ -47,16 +47,21 @@ Before middleware installation, create a baseline:
 ./fm --baseline /
 ```
 
-To target a specific directory:
+To target multiple directories (comma-separated or space-separated):
 ```bash
-./fm --baseline /usr
-./fm --baseline /etc
+./fm --baseline /usr,/etc
+./fm --baseline /usr /etc
 ```
 
 ### 2. Check for Changes
 After installation, check for changes:
 ```bash
 ./fm --check /
+```
+
+To check multiple directories:
+```bash
+./fm --check /usr,/etc
 ```
 
 ### 3. Reset Baseline
@@ -94,7 +99,14 @@ Changes detected: 2 file(s) changed
 No changes: No files were changed
 ```
 
-## Excluded Patterns
+## Exclude Patterns
+
+You can exclude files/directories by pattern using the `--exclude` option. Multiple patterns can be specified with commas, and you can use `--exclude` multiple times:
+
+```bash
+./fm --baseline / --exclude /tmp/,/var/log/ --exclude /proc/
+./fm --check /usr,/etc --exclude /tmp/
+```
 
 The following directories are automatically excluded:
 - `/tmp/`
@@ -102,21 +114,19 @@ The following directories are automatically excluded:
 - `/proc/`
 - `/sys/`
 - `/dev/`
+## Usage
 
-## Exit Codes
+```
+Usage:
+  ./fm --baseline [directory(,directory...)] [--exclude path(,path...)] : Create baseline (with MD5 hash)
+  ./fm --check [directory(,directory...)] [--exclude path(,path...)]    : Check for changes (strict MD5 check)
+  ./fm --reset                                                        : Reset baseline
 
-- `0`: No changes
-- `1`: Error
-- `2`: Changes detected
+Examples:
+  ./fm --baseline /,/usr --exclude /tmp/,/var/log/     : Create baseline for / and /usr, excluding /tmp/, /var/log/
+  ./fm --check /etc,/opt --exclude /proc/              : Check for changes in /etc and /opt, excluding /proc/
+  ./fm --baseline /usr                                : Create baseline for /usr
 
-## Notes
-
-- Baseline file is saved as `/tmp/fm_baseline.dat`
-- May take time for large systems
-- MD5 hash calculation enables strict change detection but increases processing time
-- Files without read permission are skipped automatically
-- Works with OpenSSL 3.0 (uses EVP API)
-
-## License
-
-MIT License
+Note: MD5 hash calculation may take time, but enables strict change detection.
+      You can specify multiple directories and --exclude multiple times, each with a comma-separated list.
+```

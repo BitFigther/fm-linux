@@ -125,6 +125,14 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
             return 0;
         }
     }
+    // 自動除外ディレクトリ
+    if (strstr(fpath, "/tmp/") ||
+        strstr(fpath, "/var/log/") ||
+        strstr(fpath, "/proc/") ||
+        strstr(fpath, "/sys/") ||
+        strstr(fpath, "/dev/")) {
+        return 0;
+    }
     // Calculate MD5 hash
     unsigned char md5[MD5_DIGEST_LENGTH];
     if (!calculate_md5(fpath, md5)) {
@@ -244,18 +252,29 @@ int load_baseline() {
 
 // Print usage
 void print_usage(const char *program_name) {
+// カンマ区切り文字列を分割してtarget_dirsに追加
+void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count) {
+    char *copy = strdup(arg);
+    char *token = strtok(copy, ",");
+    while (token) {
+        *target_dirs = realloc((void*)*target_dirs, sizeof(char*) * (*target_dirs_count + 1));
+        (*target_dirs)[(*target_dirs_count)++] = strdup(token);
+        token = strtok(NULL, ",");
+    }
+    free(copy);
+}
     printf("Usage:\n");
-    printf("  %s --baseline [directory] [--exclude path ...] : Create baseline (with MD5 hash)\n", program_name);
-    printf("  %s --check [directory] [--exclude path ...]    : Check for changes (strict MD5 check)\n", program_name);
-    printf("  %s --reset                                   : Reset baseline\n", program_name);
+    printf("  %s --baseline [directory(,directory...)] [--exclude path(,path...)] : Create baseline (with MD5 hash)\n", program_name);
+    printf("  %s --check [directory(,directory...)] [--exclude path(,path...)]    : Check for changes (strict MD5 check)\n", program_name);
+    printf("  %s --reset                                                    : Reset baseline\n", program_name);
     printf("\n");
-        printf("Examples:\n");
-        printf("  %s --baseline / --exclude /tmp/,/var/log/,/proc/   : Create baseline for entire system, excluding /tmp/, /var/log/, /proc/\n", program_name);
-        printf("  %s --check / --exclude /tmp/,/var/log/            : Check for changes, excluding /tmp/, /var/log/\n", program_name);
-        printf("  %s --baseline /usr                                : Create baseline for /usr\n", program_name);
-        printf("\n");
-        printf("Note: MD5 hash calculation may take time, but enables strict change detection.\n");
-        printf("      You can specify --exclude multiple times, each with a comma-separated list.\n");
+    printf("Examples:\n");
+    printf("  %s --baseline /,/usr --exclude /tmp/,/var/log/     : Create baseline for / and /usr, excluding /tmp/, /var/log/\n", program_name);
+    printf("  %s --check /etc,/opt --exclude /proc/              : Check for changes in /etc and /opt, excluding /proc/\n", program_name);
+    printf("  %s --baseline /usr                                : Create baseline for /usr\n", program_name);
+    printf("\n");
+    printf("Note: MD5 hash calculation may take time, but enables strict change detection.\n");
+    printf("      You can specify multiple directories and --exclude multiple times, each with a comma-separated list.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -273,7 +292,9 @@ int main(int argc, char *argv[]) {
     }
 
     // --excludeオプション解析
-    const char *target_dir = NULL;
+    // 複数ディレクトリ対応
+    const char **target_dirs = NULL;
+    int target_dirs_count = 0;
     exclude_patterns_count = 0;
     exclude_patterns = NULL;
     for (int i = 1; i < argc; i++) {
@@ -281,30 +302,40 @@ int main(int argc, char *argv[]) {
             add_exclude_patterns(argv[++i]);
         } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "--check") == 0) {
             // skip, handled below
-        } else if (!target_dir && argv[i][0] != '-') {
-            target_dir = argv[i];
+        } else if (argv[i][0] != '-') {
+            add_target_dirs(argv[i], &target_dirs, &target_dirs_count);
         }
     }
 
-    if (!target_dir || (strcmp(argv[1], "--baseline") != 0 && strcmp(argv[1], "--check") != 0)) {
+    if (target_dirs_count == 0 || (strcmp(argv[1], "--baseline") != 0 && strcmp(argv[1], "--check") != 0)) {
         print_usage(argv[0]);
-        if (exclude_patterns) free(exclude_patterns);
+        if (exclude_patterns) {
+            for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);
+            free(exclude_patterns);
+        }
+        if (target_dirs) free(target_dirs);
         return 1;
     }
 
     int ret = 0;
     if (strcmp(argv[1], "--baseline") == 0) {
-        printf("Creating baseline: %s\n", target_dir);
-        printf("Processing...\n");
-        // Scan file tree and create baseline
-        if (nftw(target_dir, scan_file, 20, FTW_PHYS) == -1) {
-            perror("Directory scan error");
-            ret = 1;
-        } else {
-            save_baseline();
+        printf("Creating baseline for:");
+        for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
+        printf("\nProcessing...\n");
+        // Scan file tree and create baseline for all dirs
+        int err = 0;
+        for (int i = 0; i < target_dirs_count; i++) {
+            if (nftw(target_dirs[i], scan_file, 20, FTW_PHYS) == -1) {
+                perror("Directory scan error");
+                err = 1;
+            }
         }
+        if (!err) save_baseline();
+        ret = err;
     } else if (strcmp(argv[1], "--check") == 0) {
-        printf("Checking for changes: %s\n", target_dir);
+        printf("Checking for changes in:");
+        for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
+        printf("\n");
         if (!load_baseline()) {
             printf("Error: Baseline file not found.\n");
             printf("Please create a baseline first using --baseline option.\n");
@@ -312,11 +343,14 @@ int main(int argc, char *argv[]) {
         } else {
             printf("Processing...\n");
             changes_detected = 0;
-            // Scan file tree and check for changes
-            if (nftw(target_dir, scan_file, 20, FTW_PHYS) == -1) {
-                perror("Directory scan error");
-                ret = 1;
-            } else {
+            int err = 0;
+            for (int i = 0; i < target_dirs_count; i++) {
+                if (nftw(target_dirs[i], scan_file, 20, FTW_PHYS) == -1) {
+                    perror("Directory scan error");
+                    err = 1;
+                }
+            }
+            if (!err) {
                 printf("\n=== Result ===\n");
                 if (changes_detected > 0) {
                     printf("Changes detected: %d file(s) changed\n", changes_detected);
@@ -325,6 +359,8 @@ int main(int argc, char *argv[]) {
                     printf("No changes: No files were changed\n");
                     ret = 0; // Exit code for no changes
                 }
+            } else {
+                ret = 1;
             }
         }
     } else {
@@ -340,5 +376,9 @@ int main(int argc, char *argv[]) {
         free(exclude_patterns[i]);
     }
     free(exclude_patterns);
+    if (target_dirs) {
+        for (int i = 0; i < target_dirs_count; i++) free((void*)target_dirs[i]);
+        free(target_dirs);
+    }
     return ret;
 }

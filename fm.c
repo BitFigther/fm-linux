@@ -9,6 +9,9 @@
 #include <openssl/evp.h>
 #include <openssl/md5.h>
 
+// プロトタイプ宣言
+void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count);
+
 // Structure to store baseline file information
 typedef struct {
     char *filepath;
@@ -266,8 +269,7 @@ int load_baseline() {
     return 1;
 }
 
-// Print usage
-void print_usage(const char *program_name) {
+
 // カンマ区切り文字列を分割してtarget_dirsに追加
 void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count) {
     char *copy = strdup(arg);
@@ -279,6 +281,9 @@ void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dir
     }
     free(copy);
 }
+
+// Print usage
+void print_usage(const char *program_name) {
     printf("Usage:\n");
     printf("  %s --baseline [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path] : Create baseline (with MD5 hash)\n", program_name);
     printf("  %s --check [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path]    : Check for changes (strict MD5 check)\n", program_name);
@@ -294,7 +299,25 @@ void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dir
 }
 
 int main(int argc, char *argv[]) {
-    set_default_baseline_file_path();
+
+    // --excludeオプション解析
+    // 複数ディレクトリ対応
+    const char **target_dirs = NULL;
+    int target_dirs_count = 0;
+    exclude_patterns_count = 0;
+    exclude_patterns = NULL;
+    // まず--baseline-fileを探す
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--baseline-file") == 0 && i + 1 < argc) {
+            baseline_file_path = argv[i+1];
+            break;
+        }
+    }
+    // --baseline-fileが指定されていなければデフォルトパスをセット
+    if (baseline_file_path == baseline_file_path_buf) {
+        set_default_baseline_file_path();
+    }
+
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;
@@ -308,17 +331,12 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // --excludeオプション解析
-    // 複数ディレクトリ対応
-    const char **target_dirs = NULL;
-    int target_dirs_count = 0;
-    exclude_patterns_count = 0;
-    exclude_patterns = NULL;
+    // 残りのオプション解析
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--exclude") == 0 && i + 1 < argc) {
             add_exclude_patterns(argv[++i]);
         } else if (strcmp(argv[i], "--baseline-file") == 0 && i + 1 < argc) {
-            baseline_file_path = argv[++i];
+            i++; // すでに処理済みなのでスキップ
         } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "--check") == 0) {
             // skip, handled below
         } else if (argv[i][0] != '-') {

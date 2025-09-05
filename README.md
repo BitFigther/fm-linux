@@ -1,4 +1,4 @@
-# File Monitor - File Change Detection Tool (English)
+# File Monitor - File Change Detection Tool
 
 ## Overview
 

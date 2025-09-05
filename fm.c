@@ -40,7 +40,18 @@ void add_exclude_patterns(const char *arg) {
 }
 
 // Path to baseline file (default)
-char *baseline_file_path = "/tmp/fm_baseline.dat";
+char baseline_file_path_buf[256] = "";
+char *baseline_file_path = baseline_file_path_buf;
+
+void set_default_baseline_file_path() {
+    time_t now = time(NULL);
+    struct tm tm;
+    localtime_r(&now, &tm);
+    snprintf(baseline_file_path_buf, sizeof(baseline_file_path_buf),
+             "/tmp/fm_baseline_%04d%02d%02d_%02d%02d%02d.dat",
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+             tm.tm_hour, tm.tm_min, tm.tm_sec);
+}
 
 // Function to calculate MD5 hash of a file (OpenSSL 3.0 compatible)
 int calculate_md5(const char *filepath, unsigned char *result) {
@@ -180,6 +191,11 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
 
 // Save baseline to file
 void save_baseline() {
+    // 既存ファイルがあれば上書きしない
+    if (access(baseline_file_path, F_OK) == 0) {
+        fprintf(stderr, "Error: Baseline file '%s' already exists. Use a different file or delete it first.\n", baseline_file_path);
+        exit(1);
+    }
     FILE *fp = fopen(baseline_file_path, "wb");
     if (!fp) {
         perror("Failed to create baseline file");
@@ -278,6 +294,7 @@ void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dir
 }
 
 int main(int argc, char *argv[]) {
+    set_default_baseline_file_path();
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;

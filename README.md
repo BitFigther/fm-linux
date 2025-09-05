@@ -127,6 +127,9 @@ Examples:
   ./fm --check /etc,/opt --exclude /proc/ --baseline-file /tmp/mybase.dat              : Check for changes in /etc and /opt, excluding /proc/, using /tmp/mybase.dat
   ./fm --baseline /usr                                : Create baseline for /usr
 
+Default baseline file name is `/tmp/fm_baseline_YYYYMMDD_HHMMSS.dat` (current date and time to the second).
+You can change the file name with `--baseline-file` option.
+
 Note: MD5 hash calculation may take time, but enables strict change detection.
       You can specify multiple directories and --exclude multiple times, each with a comma-separated list.
 ```

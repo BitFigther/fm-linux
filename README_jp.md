@@ -1,7 +1,4 @@
 # fm-linux
-=======
-
-# File Monitor - システム変更検出ツール
 
 ## 概要
 
@@ -51,16 +48,21 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 ./file_monitor --baseline /
 ```
 
-特定のディレクトリのみを対象にする場合:
+複数ディレクトリをカンマ区切りまたはスペース区切りで指定可能:
 ```bash
-./file_monitor --baseline /usr
-./file_monitor --baseline /etc
+./file_monitor --baseline /usr,/etc
+./file_monitor --baseline /usr /etc
 ```
 
 ### 2. 変更チェック
 ミドルウェア導入後に変更をチェック:
 ```bash
 ./file_monitor --check /
+```
+
+複数ディレクトリをチェック:
+```bash
+./file_monitor --check /usr,/etc
 ```
 
 ### 3. ベースラインリセット
@@ -99,6 +101,12 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 ```
 
 ## 除外パターン
+`--exclude` オプションで除外パターンを指定できます。カンマ区切りで複数指定や、`--exclude`の複数回指定も可能です:
+
+```bash
+./file_monitor --baseline / --exclude /tmp/,/var/log/ --exclude /proc/
+./file_monitor --check /usr,/etc --exclude /tmp/
+```
 
 以下のディレクトリは自動的に除外されます:
 - `/tmp/`
@@ -106,6 +114,21 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 - `/proc/`
 - `/sys/`
 - `/dev/`
+
+```
+Usage:
+  ./file_monitor --baseline [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path] : ベースライン作成 (MD5ハッシュ)
+  ./file_monitor --check [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path]    : 変更チェック (厳密なMD5チェック)
+  ./file_monitor --reset [--baseline-file path]                                                        : ベースラインリセット
+
+Examples:
+  ./file_monitor --baseline /,/usr --exclude /tmp/,/var/log/ --baseline-file /tmp/mybase.dat     : /と/usrを対象、/tmp/・/var/log/を除外、ベースラインファイルは /tmp/mybase.dat
+  ./file_monitor --check /etc,/opt --exclude /proc/ --baseline-file /tmp/mybase.dat              : /etcと/optを対象、/proc/を除外、/tmp/mybase.datを使用
+  ./file_monitor --baseline /usr                                : /usrのみを対象
+
+Note: MD5ハッシュ計算は厳密な変更検出が可能ですが、処理時間が増加します。
+      ディレクトリ・--excludeはカンマ区切りや複数回指定が可能です。
+```
 
 ## 終了コード
 

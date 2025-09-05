@@ -42,7 +42,6 @@ void add_exclude_patterns(const char *arg) {
     free(copy);
 }
 
-
 // Path to baseline file (with timestamp)
 char baseline_file_path_buf[256] = "";
 char *baseline_file_path = baseline_file_path_buf;

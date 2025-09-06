@@ -12,6 +12,9 @@
 // プロトタイプ宣言
 void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count);
 
+// デフォルトのベースラインファイルパスをマクロで定義
+#define BASELINE_FILE "/tmp/fm_baseline.dat"
+
 // Structure to store baseline file information
 typedef struct {
     char *filepath;
@@ -42,19 +45,9 @@ void add_exclude_patterns(const char *arg) {
     free(copy);
 }
 
-// Path to baseline file (with timestamp)
-char baseline_file_path_buf[256] = "";
+// Path to baseline file
+char baseline_file_path_buf[256] = BASELINE_FILE;
 char *baseline_file_path = baseline_file_path_buf;
-
-void set_default_baseline_file_path() {
-    time_t now = time(NULL);
-    struct tm tm;
-    localtime_r(&now, &tm);
-    snprintf(baseline_file_path_buf, sizeof(baseline_file_path_buf),
-             "/tmp/fm_baseline_%04d%02d%02d_%02d%02d%02d.dat",
-             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-             tm.tm_hour, tm.tm_min, tm.tm_sec);
-}
 
 // Function to calculate MD5 hash of a file (OpenSSL 3.0 compatible)
 int calculate_md5(const char *filepath, unsigned char *result) {
@@ -214,6 +207,7 @@ void save_baseline() {
         fwrite(baseline[i].md5, MD5_DIGEST_LENGTH, 1, fp);
     }
     fclose(fp);
+    printf("Create baseline file : %s \n", baseline_file_path);
     printf("Baseline saved: %d files\n", baseline_count);
 }
 
@@ -296,7 +290,6 @@ void print_usage(const char *program_name) {
 }
 
 int main(int argc, char *argv[]) {
-    set_default_baseline_file_path();
     const char **target_dirs = NULL;
     int target_dirs_count = 0;
     int reset_requested = 0;

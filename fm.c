@@ -299,25 +299,21 @@ int main(int argc, char *argv[]) {
     set_default_baseline_file_path();
     const char **target_dirs = NULL;
     int target_dirs_count = 0;
+    int reset_requested = 0;
+
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;
     }
-    if (strcmp(argv[1], "--reset") == 0 || strcmp(argv[1], "-r") == 0) {
-        if (unlink(baseline_file_path) == 0) {
-            printf("Baseline file deleted\n");
-        } else {
-            printf("Baseline file not found\n");
-        }
-        return 0;
-    }
 
-    // 残りのオプション解析
+    // 最初にすべてのオプションを解析
     for (int i = 1; i < argc; i++) {
         if ((strcmp(argv[i], "--exclude") == 0 || strcmp(argv[i], "-e") == 0) && i + 1 < argc) {
             add_exclude_patterns(argv[++i]);
         } else if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
-            baseline_file_path = argv[++i]; // ← ここでセット
+            baseline_file_path = argv[++i];
+        } else if (strcmp(argv[i], "--reset") == 0 || strcmp(argv[i], "-r") == 0) {
+            reset_requested = 1;
         } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "-B") == 0 || strcmp(argv[i], "--check") == 0 || strcmp(argv[i], "-c") == 0) {
             // skip, handled below
         } else if (argv[i][0] != '-') {
@@ -325,6 +321,19 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // リセット要求がある場合は処理
+    if (reset_requested) {
+        if (unlink(baseline_file_path) == 0) {
+            printf("Baseline file deleted: %s\n", baseline_file_path);
+        } else {
+            printf("Baseline file not found: %s\n", baseline_file_path);
+        }
+        // リセットのみの場合は終了
+        if (!(strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0 || strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-c") == 0)) {
+            return 0;
+        }
+    }
+    
     if (target_dirs_count == 0 || 
         !(strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0 || strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-c") == 0)) {
         print_usage(argv[0]);

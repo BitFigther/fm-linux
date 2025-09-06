@@ -32,6 +32,8 @@ time_t baseline_time = 0;
 // Exclude patterns (from args)
 char **exclude_patterns = NULL;
 int exclude_patterns_count = 0;
+// ファイルの存在チェック用配列を追加
+int *file_checked = NULL;
 
 // カンマ区切り文字列を分割してexclude_patternsに追加
 void add_exclude_patterns(const char *arg) {
@@ -150,6 +152,14 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
     // Change detection mode
     FileInfo *existing = find_file_info(fpath);
     if (existing) {
+        // このファイルが存在することをマーク
+        for (int i = 0; i < baseline_count; i++) {
+            if (strcmp(baseline[i].filepath, fpath) == 0) {
+                file_checked[i] = 1;
+                break;
+            }
+        }
+        
         // Check for changes in existing file
         int hash_changed = memcmp(existing->md5, md5, MD5_DIGEST_LENGTH) != 0;
         int mtime_changed = existing->mtime != sb->st_mtime;
@@ -251,9 +261,31 @@ int load_baseline() {
     }
     fclose(fp);
     printf("Baseline loaded: %d files (Created: %s)", baseline_count, ctime(&baseline_time));
+    
+    // ファイルチェック配列を初期化（チェックモード用）
+    file_checked = calloc(baseline_count, sizeof(int));
+    if (!file_checked) {
+        fclose(fp);
+        return 0;
+    }
+    
     return 1;
 }
 
+// 削除されたファイルを報告する関数
+void report_deleted_files() {
+    if (!file_checked) return;
+    
+    for (int i = 0; i < baseline_count; i++) {
+        if (!file_checked[i]) {
+            printf("Deleted file: %s\n", baseline[i].filepath);
+            changes_detected++;
+        }
+    }
+    
+    free(file_checked);
+    file_checked = NULL;
+}
 
 // カンマ区切り文字列を分割してtarget_dirsに追加
 void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count) {
@@ -364,7 +396,10 @@ int main(int argc, char *argv[]) {
                     err = 1;
                 }
             }
+            
+            // 削除されたファイルのレポートを追加
             if (!err) {
+                report_deleted_files();
                 printf("\n=== Result ===\n");
                 if (changes_detected > 0) {
                     printf("Changes detected: %d file(s) changed\n", changes_detected);
@@ -394,5 +429,8 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < target_dirs_count; i++) free((void*)target_dirs[i]);
         free(target_dirs);
     }
+    // file_checked の解放（万一解放されていない場合のため）
+    free(file_checked);
+    
     return ret;
 }

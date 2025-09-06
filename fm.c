@@ -303,7 +303,7 @@ int main(int argc, char *argv[]) {
         print_usage(argv[0]);
         return 1;
     }
-    if (strcmp(argv[1], "--reset") == 0) {
+    if (strcmp(argv[1], "--reset") == 0 || strcmp(argv[1], "-r") == 0) {
         if (unlink(baseline_file_path) == 0) {
             printf("Baseline file deleted\n");
         } else {

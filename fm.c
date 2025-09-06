@@ -313,14 +313,17 @@ int main(int argc, char *argv[]) {
 
     // リセット要求がある場合は処理
     if (reset_requested) {
+        int reset_failed = 0;  // リセット失敗フラグを追加
         if (unlink(baseline_file_path) == 0) {
             printf("Baseline file deleted: %s\n", baseline_file_path);
         } else {
             printf("Baseline file not found: %s\n", baseline_file_path);
+            reset_failed = 1;  // 削除に失敗した場合はフラグを設定
         }
         // リセットのみの場合は終了
-        if (!(strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0 || strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-c") == 0)) {
-            return 0;
+        if (!(strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0 || 
+              strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-c") == 0)) {
+            return reset_failed;  // リセット失敗時は1、成功時は0を返す
         }
     }
     

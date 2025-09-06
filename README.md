@@ -1,30 +1,31 @@
-# File Monitor - File Change Detection Tool
+
+# fm-linux
 
 ## Overview
 
-This C program detects changes in all files of your system, useful for verifying file integrity after middleware installation or system updates.
+- A C-language command-line tool for detecting file changes across the entire system.
+- Designed for verifying differences after software installation or patch application.
 
 ## Features
 
-- **Fast processing**: Implemented in C for efficient scanning of large numbers of files
-- **Strict verification**: Detects changes using MD5 hash
-- **Lightweight**: Records only file size, modification time, and MD5 hash
-- **Flexible**: Can target any directory
+- **Fast & Lightweight**: High-speed scanning of large directories with C implementation
+- **Strict Change Detection**: Accurate detection of content changes using MD5 hash
+- **Flexible Target Specification**: Support for arbitrary directories and multiple directories
+- **Exclude Patterns**: Exclusion by partial matching of subdirectories or file names
+- **Colored Output**: Color-coded display of changes (can be disabled with `--no-color`)
 
 ## Required Libraries
 
 - OpenSSL (`libssl-dev` or `openssl-devel`)
-  - Compatible with OpenSSL 1.1.x and 3.0.x
+  - Compatible with OpenSSL 1.1.x / 3.0.x
 
-### For Ubuntu/Debian
+### Ubuntu/Debian
 ```bash
 sudo apt-get install libssl-dev
 ```
 
-### For CentOS/RHEL
+### CentOS/RHEL
 ```bash
-sudo yum install openssl-devel
-# or
 sudo dnf install openssl-devel
 ```
 
@@ -37,75 +38,57 @@ make
 Or manually:
 ```bash
 gcc -Wall -O2 -D_GNU_SOURCE -o fm fm.c -lssl -lcrypto
+sudo cp -f ./build/fm /usr/local/bin/
 ```
 
-## Usage
+## Arguments
 
-### 1. Create Baseline
-Before middleware installation, create a baseline:
-```bash
-./fm --baseline /
-```
+### Required Options
+One of the following must be specified:
 
-To target multiple directories (comma-separated or space-separated):
+- `--baseline`, `-B` <directory(,directory...)>
+  - Baseline creation mode. Records file information under specified directories.
+  - Saved by default as `/tmp/fm_baseline.dat`.
+  - Custom path can be specified with `--baseline-file`.
+
+- `--check`, `-C` <directory(,directory...)>
+  - Change check mode. Detects changed, new, and deleted files by comparing with baseline.
+  - Custom baseline file can be specified with `--baseline-file`.
+
+- `--reset` or `-R`  
+  - Deletes (resets) the baseline file.
+  - Custom baseline file can be specified with `--baseline-file`.
+
+### Optional Options
+- `--exclude <pattern>` or `-e <pattern>`  
+  - Exclude patterns (partial match). Can be specified with commas or multiple times.
+- `--baseline-file`, `-b` <filename>
+  - Specify baseline file name.
+- `--no-color`  
+  - Disable colored output.
+
+## Usage Examples
+
+### 1. Create Baseline (Base file information before work)
 ```bash
-./fm --baseline /usr,/etc
-./fm --baseline /usr /etc
+fm -B /etc,/usr
 ```
 
 ### 2. Check for Changes
-After installation, check for changes:
 ```bash
-./fm --check /
-```
-
-To check multiple directories:
-```bash
-./fm --check /usr,/etc
+fm -C /etc,/usr
 ```
 
 ### 3. Reset Baseline
 ```bash
-./fm --reset
+fm -R
 ```
 
-## Output Example
-
-### When creating baseline
-```
-Creating baseline: /usr
-Processing...
-Baseline saved: 15432 files
-```
-
-### When changes are detected
-```
-Checking for changes: /usr
-Baseline loaded: 15432 files (Created: Mon Sep  2 10:30:45 2025)
-Processing...
-Change detected: /usr/bin/example
-  Modified time: 1693123845 -> 1693127445
-  Size: 123456 -> 124000
-  MD5 hash: abc123def456... -> def456abc123...
-New file: /usr/lib/newfile.so (MD5: 789abc012def...)
-
-=== Result ===
-Changes detected: 2 file(s) changed
-```
-
-### When no changes
-```
-=== Result ===
-No changes: No files were changed
-```
-
-## Exclude Patterns
-
-You can exclude files/directories by pattern using the `--exclude` option. Multiple patterns can be specified with commas, and you can use `--exclude` multiple times:
-
+### Exclude Patterns
+Use `--exclude` for partial match exclusion. Can be specified with commas or multiple times.
 ```bash
-./fm --baseline / --exclude /tmp/,/var/log/ --exclude /proc/
-./fm --check /usr,/etc --exclude /tmp/
+fm -B / --exclude /tmp/,/var/log/ --exclude /proc/
+fm -C /usr,/etc --exclude /log/,/tmp/
 ```
 
 The following directories are automatically excluded:
@@ -114,22 +97,55 @@ The following directories are automatically excluded:
 - `/proc/`
 - `/sys/`
 - `/dev/`
-## Usage
 
+### Colored Output
+Color-coded display by default. Disable with `--no-color`.
+
+## Exit Codes
+- `0`: No changes
+- `1`: Error
+- `2`: Changes detected
+
+## Output Examples
+
+### When creating baseline
 ```
-Usage:
-  ./fm --baseline [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path] : Create baseline (with MD5 hash)
-  ./fm --check [directory(,directory...)] [--exclude path(,path...)] [--baseline-file path]    : Check for changes (strict MD5 check)
-  ./fm --reset [--baseline-file path]                                                        : Reset baseline
-
-Examples:
-  ./fm --baseline /,/usr --exclude /tmp/,/var/log/ --baseline-file /tmp/mybase.dat     : Create baseline for / and /usr, excluding /tmp/, /var/log/, baseline file is /tmp/mybase.dat
-  ./fm --check /etc,/opt --exclude /proc/ --baseline-file /tmp/mybase.dat              : Check for changes in /etc and /opt, excluding /proc/, using /tmp/mybase.dat
-  ./fm --baseline /usr                                : Create baseline for /usr
-
-Default baseline file name is `/tmp/fm_baseline_YYYYMMDD_HHMMSS.dat` (current date and time to the second).
-You can change the file name with `--baseline-file` option.
-
-Note: MD5 hash calculation may take time, but enables strict change detection.
-      You can specify multiple directories and --exclude multiple times, each with a comma-separated list.
+Creating baseline for: /Work/
+Processing...
+Create baseline file : /tmp/fm_baseline.dat
+Baseline saved: 310 files
 ```
+
+### When changes are detected
+```
+Checking for changes in: /Work/
+Baseline loaded: 310 files (Created: Sun Sep  7 03:27:55 2025
+)Processing...
+Change detected: /Work/fm-linux/README.md
+  Modified time: 20250907_032723 -> 20250907_032849
+  Size: 3795 -> 3861
+  MD5 hash: d7423ce7a38d70c8d9a11a8e0987dbbf -> c2d433f514cc82d9e7b47f84feeb6713
+New file: /Work/fm-linux/duumy (MD5: d41d8cd98f00b204e9800998ecf8427e)
+=== Result ===
+Changes detected: 2 files
+```
+
+### When no changes
+```
+=== Result ===
+No changes: No files were changed
+```
+
+## Notes and Limitations
+
+- Maximum 16 baseline files can be specified. Excess files are ignored with warning.
+- Exclude patterns use partial matching. Multiple specifications and multiple times are allowed.
+- `--baseline-file` (`-b`) and `--exclude` (`-e`) options: **only the last specified value is effective (overwritten)**
+- MD5 calculation is strict but increases processing time. May take time on large systems.
+- Files that cannot be read are automatically skipped.
+- Compatible with OpenSSL 3.0 (uses EVP API).
+- Colored output can be disabled with `--no-color`.
+
+## License
+
+MIT License

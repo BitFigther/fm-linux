@@ -111,5 +111,4 @@ fm -C /usr,/etc --exclude /log/,/tmp/
 - 色付き出力は`--no-color`で無効化可。
 
 ## ライセンス
-
-MIT License
+このプロジェクトはMITライセンスの条項の下で配布されています。ライセンスの詳細については、[LICENSE](LICENSE)ファイルをご覧ください。

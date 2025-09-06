@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2025 BitFigther
+ * Licensed under the MIT License
+ */
+
 #include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>

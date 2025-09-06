@@ -3,14 +3,14 @@ set -e
 
 # 準備
 echo "$PWD"
-rm -f /tmp/fm_test_base.dat
-dir=test/data
+#rm -f /tmp/fm_test_base.dat
+dir=./data
 mkdir -p "$dir"
 echo "hello" > "$dir/file1.txt"
 
 # ベースライン作成
 echo "[TEST] Create baseline"
-../fm --baseline "$dir" --baseline-file /tmp/fm_test_base.dat
+fm --baseline "$dir" --baseline-file /tmp/fm_test_base.dat
 
 # ファイルを変更
 echo "world" > "$dir/file1.txt"

@@ -187,7 +187,13 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
             if (hash_changed || mtime_changed || size_changed) {
                 printf("%sChange detected: %s%s\n", COLOR_YELLOW, fpath, COLOR_RESET);
                 if (mtime_changed) {
-                    printf("  Modified time: %ld -> %ld\n", existing->mtime, sb->st_mtime);
+                    char old_time_str[32], new_time_str[32];
+                    struct tm tm_old, tm_new;
+                    localtime_r(&existing->mtime, &tm_old);
+                    localtime_r(&sb->st_mtime, &tm_new);
+                    strftime(old_time_str, sizeof(old_time_str), "%Y%m%d_%H%M%S", &tm_old);
+                    strftime(new_time_str, sizeof(new_time_str), "%Y%m%d_%H%M%S", &tm_new);
+                    printf("  Modified time: %s -> %s\n", old_time_str, new_time_str);
                 }
                 if (size_changed) {
                     printf("  Size: %ld -> %ld\n", existing->size, sb->st_size);
@@ -301,6 +307,15 @@ void report_deleted_files() {
     if (!file_checked) return;
     
     for (int i = 0; i < baseline_count; i++) {
+        // 除外パターンに該当する場合はスキップ
+        int excluded = 0;
+        for (int j = 0; j < exclude_patterns_count; j++) {
+            if (strstr(baseline[i].filepath, exclude_patterns[j])) {
+                excluded = 1;
+                break;
+            }
+        }
+        if (excluded) continue;
         if (!file_checked[i]) {
             printf("%sDeleted file: %s%s\n", COLOR_RED, baseline[i].filepath, COLOR_RESET);
             changes_detected++;

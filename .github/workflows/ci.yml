@@ -24,8 +24,3 @@ jobs:
           cd test
           chmod +x test_fm.sh
           ./test_fm.sh
-          code=$?
-          if [ $code -eq 1 ]; then
-            exit 1
-          fi
-          exit 0

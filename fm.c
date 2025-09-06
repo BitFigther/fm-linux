@@ -1,10 +1,4 @@
-#define COLOR_RED    (use_color ? "\033[31m" : "")
-#define COLOR_GREEN  (use_color ? "\033[32m" : "")
-#define COLOR_YELLOW (use_color ? "\033[33m" : "")
-#define COLOR_RESET  (use_color ? "\033[0m" : "")
-
-// 色付け有無のグローバル変数
-int use_color = 1;
+#include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +9,13 @@ int use_color = 1;
 #include <ftw.h>
 #include <openssl/evp.h>
 #include <openssl/md5.h>
+
+// 色付け有無のグローバル変数
+int use_color = 1;
+#define COLOR_RED    (use_color ? "\033[31m" : "")
+#define COLOR_GREEN  (use_color ? "\033[32m" : "")
+#define COLOR_YELLOW (use_color ? "\033[33m" : "")
+#define COLOR_RESET  (use_color ? "\033[0m" : "")
 
 // デフォルトのベースラインファイルパスをマクロで定義
 #define BASELINE_FILE "/tmp/fm_baseline.dat"

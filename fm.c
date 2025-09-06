@@ -15,6 +15,9 @@ void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dir
 // デフォルトのベースラインファイルパスをマクロで定義
 #define BASELINE_FILE "/tmp/fm_baseline.dat"
 
+// Path to baseline file
+char baseline_file_path[256] = BASELINE_FILE;
+
 // Structure to store baseline file information
 typedef struct {
     char *filepath;
@@ -44,10 +47,6 @@ void add_exclude_patterns(const char *arg) {
     }
     free(copy);
 }
-
-// Path to baseline file
-char baseline_file_path_buf[256] = BASELINE_FILE;
-char *baseline_file_path = baseline_file_path_buf;
 
 // Function to calculate MD5 hash of a file (OpenSSL 3.0 compatible)
 int calculate_md5(const char *filepath, unsigned char *result) {
@@ -304,7 +303,8 @@ int main(int argc, char *argv[]) {
         if ((strcmp(argv[i], "--exclude") == 0 || strcmp(argv[i], "-e") == 0) && i + 1 < argc) {
             add_exclude_patterns(argv[++i]);
         } else if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
-            baseline_file_path = argv[++i];
+            strncpy(baseline_file_path, argv[++i], sizeof(baseline_file_path) - 1);
+            baseline_file_path[sizeof(baseline_file_path) - 1] = '\0'; // 終端文字を保証
         } else if (strcmp(argv[i], "--reset") == 0 || strcmp(argv[i], "-R") == 0) {
             reset_requested = 1;
         } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "-B") == 0 || strcmp(argv[i], "--check") == 0 || strcmp(argv[i], "-c") == 0) {

@@ -356,7 +356,7 @@ void report_deleted_files() {
 }
 
 // カンマ区切り文字列を分割してtarget_dirsに追加
-void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count) {
+void add_target_dirs(const char *arg, char ***target_dirs, int *target_dirs_count) {
     char *copy = strdup(arg);
     if (!copy) {
         fprintf(stderr, "Memory allocation error (strdup)\n");
@@ -364,12 +364,12 @@ void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dir
     }
     char *token = strtok(copy, ",");
     while (token) {
-        char **tmp = realloc((void*)*target_dirs, sizeof(char*) * (*target_dirs_count + 1));
+    char **tmp = realloc(*target_dirs, sizeof(char*) * (*target_dirs_count + 1));
         if (!tmp) {
             fprintf(stderr, "Memory allocation error (realloc)\n");
             exit(1);
         }
-        *target_dirs = tmp;
+    *target_dirs = tmp;
         char *p = strdup(token);
         if (!p) {
             fprintf(stderr, "Memory allocation error (strdup)\n");
@@ -403,7 +403,7 @@ void print_usage(const char *program_name) {
 }
 
 int main(int argc, char *argv[]) {
-    const char **target_dirs = NULL;
+    char **target_dirs = NULL;
     int target_dirs_count = 0;
     int reset_requested = 0;
 
@@ -466,7 +466,7 @@ int main(int argc, char *argv[]) {
     int ret = 0;
     if (strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0) {
         printf("Creating baseline for:");
-        for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
+    for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
         printf("\nProcessing...\n");
         // Scan file tree and create baseline for all dirs
         int err = 0;

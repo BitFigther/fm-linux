@@ -29,8 +29,13 @@ int baseline_file_paths_count = 0;
 void add_baseline_file_paths(const char *arg) {
     char *copy = strdup(arg);
     char *token = strtok(copy, ",");
-    while (token && baseline_file_paths_count < MAX_BASELINE_FILES) {
-        baseline_file_paths[baseline_file_paths_count++] = strdup(token);
+    while (token) {
+        if (baseline_file_paths_count < MAX_BASELINE_FILES) {
+            baseline_file_paths[baseline_file_paths_count++] = strdup(token);
+        } else {
+            fprintf(stderr, "Warning: Too many baseline files specified. Only the first %d will be used.\n", MAX_BASELINE_FILES);
+            break;
+        }
         token = strtok(NULL, ",");
     }
     free(copy);

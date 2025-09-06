@@ -9,9 +9,6 @@
 #include <openssl/evp.h>
 #include <openssl/md5.h>
 
-// プロトタイプ宣言
-void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count);
-
 // デフォルトのベースラインファイルパスをマクロで定義
 #define BASELINE_FILE "/tmp/fm_baseline.dat"
 

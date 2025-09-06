@@ -282,7 +282,7 @@ void print_usage(const char *program_name) {
     printf("Usage:\n");
     printf("  %s --baseline|-B [directory(,directory...)] [--exclude|-e path(,path...)] [--baseline-file|-b path] : Create baseline (with MD5 hash)\n", program_name);
     printf("  %s --check|-c [directory(,directory...)] [--exclude|-e path(,path...)] [--baseline-file|-b path]    : Check for changes (strict MD5 check)\n", program_name);
-    printf("  %s --reset|-r [--baseline-file|-b path]                                                    : Reset baseline\n", program_name);
+    printf("  %s --reset|-R [--baseline-file|-b path]                                                    : Reset baseline\n", program_name);
     printf("\n");
     printf("Examples:\n");
     printf("  %s --baseline /,/usr --exclude /tmp/,/var/log/ --baseline-file /tmp/mybase.dat     : Create baseline for / and /usr, excluding /tmp/, /var/log/, baseline file is /tmp/mybase.dat\n", program_name);
@@ -312,7 +312,7 @@ int main(int argc, char *argv[]) {
             add_exclude_patterns(argv[++i]);
         } else if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
             baseline_file_path = argv[++i];
-        } else if (strcmp(argv[i], "--reset") == 0 || strcmp(argv[i], "-r") == 0) {
+        } else if (strcmp(argv[i], "--reset") == 0 || strcmp(argv[i], "-R") == 0) {
             reset_requested = 1;
         } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "-B") == 0 || strcmp(argv[i], "--check") == 0 || strcmp(argv[i], "-c") == 0) {
             // skip, handled below

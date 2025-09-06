@@ -21,7 +21,7 @@ int use_color = 1;
 #define BASELINE_FILE "/tmp/fm_baseline.dat"
 
 // Path(s) to baseline file(s)
-#define MAX_BASELINE_FILES 16
+#define MAX_BASELINE_FILES 8
 char *baseline_file_paths[MAX_BASELINE_FILES];
 int baseline_file_paths_count = 0;
 

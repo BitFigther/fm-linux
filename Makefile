@@ -8,7 +8,7 @@ BUILDDIR=build
 SOURCE=fm.c
 BIN=$(BUILDDIR)/$(TARGET)
 
-all: $(BUILDDIR) $(BIN)
+all: $(BUILDDIR) $(BIN) install
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -20,6 +20,6 @@ clean:
 	rm -rf $(BUILDDIR)
 
 install: $(BIN)
-	sudo cp $(BIN) /usr/local/bin/
+	sudo cp -f $(BIN) /usr/local/bin/
 
 .PHONY: all clean install

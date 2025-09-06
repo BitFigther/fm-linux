@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
         if ((strcmp(argv[i], "--exclude") == 0 || strcmp(argv[i], "-e") == 0) && i + 1 < argc) {
             add_exclude_patterns(argv[++i]);
         } else if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
-            i++; // すでに処理済みなのでスキップ
+            baseline_file_path = argv[++i]; // ← ここでセット
         } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "-B") == 0 || strcmp(argv[i], "--check") == 0 || strcmp(argv[i], "-c") == 0) {
             // skip, handled below
         } else if (argv[i][0] != '-') {

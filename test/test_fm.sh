@@ -23,7 +23,7 @@ echo "$output" | grep "Change detected:"
 # 除外パターンテスト
 echo "ignore" > "$dir/ignore.txt"
 echo "[TEST] Exclude pattern"
-output2=$(../fm --check "$dir" --exclude ignore.txt --baseline-file /tmp/fm_test_base.dat)
+output2=$(fm --check "$dir" --exclude ignore.txt --baseline-file /tmp/fm_test_base.dat)
 ! echo "$output2" | grep "ignore.txt"
 
 echo "All tests passed."

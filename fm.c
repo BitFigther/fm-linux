@@ -28,10 +28,19 @@ int baseline_file_paths_count = 0;
 // 複数パスをカンマ区切りで追加
 void add_baseline_file_paths(const char *arg) {
     char *copy = strdup(arg);
+    if (!copy) {
+        fprintf(stderr, "Memory allocation error (strdup)\n");
+        exit(1);
+    }
     char *token = strtok(copy, ",");
     while (token) {
         if (baseline_file_paths_count < MAX_BASELINE_FILES) {
-            baseline_file_paths[baseline_file_paths_count++] = strdup(token);
+            char *p = strdup(token);
+            if (!p) {
+                fprintf(stderr, "Memory allocation error (strdup)\n");
+                exit(1);
+            }
+            baseline_file_paths[baseline_file_paths_count++] = p;
         } else {
             fprintf(stderr, "Warning: Too many baseline files specified. Only the first %d will be used.\n", MAX_BASELINE_FILES);
             break;
@@ -64,10 +73,24 @@ int *file_checked = NULL;
 // カンマ区切り文字列を分割してexclude_patternsに追加
 void add_exclude_patterns(const char *arg) {
     char *copy = strdup(arg);
+    if (!copy) {
+        fprintf(stderr, "Memory allocation error (strdup)\n");
+        exit(1);
+    }
     char *token = strtok(copy, ",");
     while (token) {
-        exclude_patterns = realloc(exclude_patterns, sizeof(char*) * (exclude_patterns_count + 1));
-        exclude_patterns[exclude_patterns_count++] = strdup(token);
+        char **tmp = realloc(exclude_patterns, sizeof(char*) * (exclude_patterns_count + 1));
+        if (!tmp) {
+            fprintf(stderr, "Memory allocation error (realloc)\n");
+            exit(1);
+        }
+        exclude_patterns = tmp;
+        char *p = strdup(token);
+        if (!p) {
+            fprintf(stderr, "Memory allocation error (strdup)\n");
+            exit(1);
+        }
+        exclude_patterns[exclude_patterns_count++] = p;
         token = strtok(NULL, ",");
     }
     free(copy);
@@ -335,10 +358,24 @@ void report_deleted_files() {
 // カンマ区切り文字列を分割してtarget_dirsに追加
 void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count) {
     char *copy = strdup(arg);
+    if (!copy) {
+        fprintf(stderr, "Memory allocation error (strdup)\n");
+        exit(1);
+    }
     char *token = strtok(copy, ",");
     while (token) {
-        *target_dirs = realloc((void*)*target_dirs, sizeof(char*) * (*target_dirs_count + 1));
-        (*target_dirs)[(*target_dirs_count)++] = strdup(token);
+        char **tmp = realloc((void*)*target_dirs, sizeof(char*) * (*target_dirs_count + 1));
+        if (!tmp) {
+            fprintf(stderr, "Memory allocation error (realloc)\n");
+            exit(1);
+        }
+        *target_dirs = tmp;
+        char *p = strdup(token);
+        if (!p) {
+            fprintf(stderr, "Memory allocation error (strdup)\n");
+            exit(1);
+        }
+        (*target_dirs)[(*target_dirs_count)++] = p;
         token = strtok(NULL, ",");
     }
     free(copy);

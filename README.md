@@ -84,7 +84,7 @@ fm -R
 ### Exclude Patterns
 Use `--exclude` for partial match exclusion. Can be specified as comma-separated or multiple times.
 ```bash
-fm -B / --exclude /tmp/,/var/log/ --exclude /proc/
+fm -B / --exclude /tmp/,/var/log/
 fm -C /usr,/etc --exclude /log/,/tmp/
 ```
 - The following directories are automatically excluded:

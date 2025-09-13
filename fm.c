@@ -292,7 +292,11 @@ int load_baseline() {
             baseline = NULL;
             break;
         }
-    printf("Baseline loaded: %d files (Created: %s)", baseline_count, ctime(&baseline_time));
+        char time_str[32];
+        struct tm tm_baseline;
+        localtime_r(&baseline_time, &tm_baseline);
+        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &tm_baseline);
+        printf("Baseline loaded: %d files (Created: %s)\n", baseline_count, time_str);
         if (file_checked) { 
             free(file_checked); file_checked = NULL; 
         }

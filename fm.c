@@ -285,50 +285,54 @@ int load_baseline() {
     for (int fidx = 0; fidx < baseline_file_paths_count; fidx++) {
         FILE *fp = fopen(baseline_file_paths[fidx], "rb");
         if (!fp) {
-            continue; // Baseline file does not exist
+            continue; // ベースラインファイルが存在しない場合は次へ
         }
-        // Read baseline creation time
+        // ベースライン作成時刻を読み込む
         if (fread(&baseline_time, sizeof(time_t), 1, fp) != 1) {
             fclose(fp);
-            continue;
+            break;
         }
-        // Read file count
+        // ファイル数を読み込む
         if (fread(&baseline_count, sizeof(int), 1, fp) != 1) {
             fclose(fp);
-            continue;
+            break;
         }
-        // Allocate memory
+        // メモリ確保
         baseline_capacity = baseline_count;
         baseline = malloc(baseline_capacity * sizeof(FileInfo));
         if (!baseline) {
             fclose(fp);
-            continue;
+            break;
         }
-        // Read each file info
+        // 各ファイル情報を読み込む
+        int failed = 0;
         for (int i = 0; i < baseline_count; i++) {
             int path_len;
-            if (fread(&path_len, sizeof(int), 1, fp) != 1) {
-                fclose(fp);
-                continue;
-            }
+            if (fread(&path_len, sizeof(int), 1, fp) != 1) { failed = 1; break; }
             baseline[i].filepath = malloc(path_len);
-            if (fread(baseline[i].filepath, path_len, 1, fp) != 1) {
-                fclose(fp);
-                continue;
-            }
+            if (!baseline[i].filepath || fread(baseline[i].filepath, path_len, 1, fp) != 1) { failed = 1; break; }
             if (fread(&baseline[i].mtime, sizeof(time_t), 1, fp) != 1 ||
                 fread(&baseline[i].size, sizeof(off_t), 1, fp) != 1 ||
-                fread(baseline[i].md5, MD5_DIGEST_LENGTH, 1, fp) != 1) {
-                fclose(fp);
-                continue;
-            }
+                fread(baseline[i].md5, MD5_DIGEST_LENGTH, 1, fp) != 1) { failed = 1; break; }
         }
         fclose(fp);
-        printf("Baseline loaded: %d files (Created: %s)", baseline_count, ctime(&baseline_time));
+        if (failed) {
+            for (int i = 0; i < baseline_count; i++) {
+                free(baseline[i].filepath);
+            }
+            free(baseline);
+            baseline = NULL;
+            break;
+        }
+    printf("Baseline loaded: %d files (Created: %s)", baseline_count, ctime(&baseline_time));
         // ファイルチェック配列を初期化（チェックモード用）
+        if (file_checked) { free(file_checked); file_checked = NULL; }
         file_checked = calloc(baseline_count, sizeof(int));
         if (!file_checked) {
-            continue;
+            for (int i = 0; i < baseline_count; i++) free(baseline[i].filepath);
+            free(baseline);
+            baseline = NULL;
+            break;
         }
         loaded = 1;
         break; // 最初に見つかったファイルのみロード
@@ -339,9 +343,8 @@ int load_baseline() {
 // 削除されたファイルを報告する関数
 void report_deleted_files() {
     if (!file_checked) return;
-    
     for (int i = 0; i < baseline_count; i++) {
-        // 除外パターンに該当する場合はスキップ
+        // Skip if matches exclude pattern
         int excluded = 0;
         for (int j = 0; j < exclude_patterns_count; j++) {
             if (strstr(baseline[i].filepath, exclude_patterns[j])) {
@@ -355,9 +358,7 @@ void report_deleted_files() {
             changes_detected++;
         }
     }
-    
-    free(file_checked);
-    file_checked = NULL;
+    // free(file_checked) は main の最後で一括解放
 }
 
 // カンマ区切り文字列を分割してtarget_dirsに追加
@@ -412,9 +413,10 @@ int main(int argc, char *argv[]) {
     int target_dirs_count = 0;
     int reset_requested = 0;
 
-    // baseline_file_paths初期値
+    // baseline_file_paths初期値（mainでのみ初期化）
     baseline_file_paths_count = 0;
-    baseline_file_paths[baseline_file_paths_count++] = strdup(BASELINE_FILE);
+    // コマンドラインで指定がなければデフォルトを追加
+    int baseline_file_explicit = 0;
 
     if (argc < 2) {
         print_usage(argv[0]);
@@ -430,6 +432,7 @@ int main(int argc, char *argv[]) {
         } else if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
             baseline_file_paths_count = 0; // 明示的指定があれば初期値をリセット
             add_baseline_file_paths(argv[++i]);
+            baseline_file_explicit = 1;
         } else if (strcmp(argv[i], "--reset") == 0 || strcmp(argv[i], "-R") == 0) {
             reset_requested = 1;
         } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "-B") == 0 || strcmp(argv[i], "--check") == 0 || strcmp(argv[i], "-C") == 0) {
@@ -438,22 +441,25 @@ int main(int argc, char *argv[]) {
             add_target_dirs(argv[i], &target_dirs, &target_dirs_count);
         }
     }
+    if (!baseline_file_explicit) {
+        baseline_file_paths[baseline_file_paths_count++] = strdup(BASELINE_FILE);
+    }
 
     // リセット要求がある場合は処理
     if (reset_requested) {
-        int reset_failed = 0;  // リセット失敗フラグを追加
+        int reset_failed = 0;  // Reset failed flag
         for (int fidx = 0; fidx < baseline_file_paths_count; fidx++) {
             if (unlink(baseline_file_paths[fidx]) == 0) {
                 printf("Baseline file deleted: %s\n", baseline_file_paths[fidx]);
             } else {
                 printf("Baseline file not found: %s\n", baseline_file_paths[fidx]);
-                reset_failed = 1;  // 削除に失敗した場合はフラグを設定
+                reset_failed = 1;
             }
         }
-        // リセットのみの場合は終了
+        // If only reset, exit
         if (!(strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0 || 
               strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-C") == 0)) {
-            return reset_failed;  // リセット失敗時は1、成功時は0を返す
+            return reset_failed;
         }
     }
     
@@ -471,9 +477,8 @@ int main(int argc, char *argv[]) {
     int ret = 0;
     if (strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0) {
         printf("Creating baseline for:");
-    for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
+        for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
         printf("\nProcessing...\n");
-        // Scan file tree and create baseline for all dirs
         int err = 0;
         for (int i = 0; i < target_dirs_count; i++) {
             if (nftw(target_dirs[i], scan_file, 20, FTW_PHYS) == -1) {
@@ -501,17 +506,15 @@ int main(int argc, char *argv[]) {
                     err = 1;
                 }
             }
-            
-            // 削除されたファイルのレポートを追加
             if (!err) {
                 report_deleted_files();
                 printf("\n=== Result ===\n");
                 if (changes_detected > 0) {
                     printf("Changes detected: %d file(s) changed\n", changes_detected);
-                    ret = 2; // Exit code for changes detected
+                    ret = 2;
                 } else {
                     printf("No changes: No files were changed\n");
-                    ret = 0; // Exit code for no changes
+                    ret = 0;
                 }
             } else {
                 ret = 1;
@@ -521,7 +524,7 @@ int main(int argc, char *argv[]) {
         print_usage(argv[0]);
         ret = 1;
     }
-    // Free memory
+    // メモリ解放
     for (int i = 0; i < baseline_count; i++) {
         free(baseline[i].filepath);
     }
@@ -534,9 +537,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < target_dirs_count; i++) free((void*)target_dirs[i]);
         free(target_dirs);
     }
-    // file_checked の解放（万一解放されていない場合のため）
-    free(file_checked);
-    // baseline_file_paths の解放
+    if (file_checked) { free(file_checked); file_checked = NULL; }
     for (int i = 0; i < baseline_file_paths_count; i++) {
         free(baseline_file_paths[i]);
     }

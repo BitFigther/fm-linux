@@ -101,14 +101,22 @@ No changes: No files were changed
 
 ## Exclude Patterns
 
-You can exclude files/directories by pattern using the `--exclude` option. Multiple patterns can be specified with commas, and you can use `--exclude` multiple times:
+You can exclude files by glob pattern using the `--exclude` option. Multiple patterns can be specified with commas, and you can use `--exclude` multiple times:
 
 ```bash
-./fm --baseline / --exclude /tmp/,/var/log/ --exclude /proc/
-./fm --check /usr,/etc --exclude /tmp/
+./fm --baseline / --exclude '*.tmp' --exclude '/var/log/*'
+./fm --check /usr,/etc --exclude '*.log,*.tmp'
 ```
 
-The following directories are automatically excluded:
+Patterns are matched using `fnmatch()` against both the full file path and the filename:
+
+| Pattern | What is excluded |
+|---------|-----------------|
+| `*.tmp` | All files ending in `.tmp` anywhere |
+| `/var/log/*` | All files directly under `/var/log/` |
+| `/etc/passwd` | That exact file |
+
+The following directories are **automatically excluded** regardless of `--exclude` settings:
 - `/tmp/`
 - `/var/log/`
 - `/proc/`

@@ -1,3 +1,4 @@
+#include <fnmatch.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,13 +135,19 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
     if (typeflag != FTW_F) {
         return 0;
     }
-    // Exclude by user-specified patterns
+    // Exclude by user-specified glob patterns (fnmatch-based; supports *.tmp, /var/log/*, etc.)
     for (int i = 0; i < exclude_patterns_count; i++) {
-        if (strstr(fpath, exclude_patterns[i])) {
+        // Match against full path
+        if (fnmatch(exclude_patterns[i], fpath, 0) == 0) {
+            return 0;
+        }
+        // Match against filename component only (e.g. *.tmp matches /any/path/file.tmp)
+        const char *fname = strrchr(fpath, '/');
+        if (fnmatch(exclude_patterns[i], fname ? fname + 1 : fpath, 0) == 0) {
             return 0;
         }
     }
-    // 自動除外ディレクトリ
+    // Auto-exclude volatile/virtual system directories (applied after user patterns)
     if (strstr(fpath, "/tmp/") ||
         strstr(fpath, "/var/log/") ||
         strstr(fpath, "/proc/") ||

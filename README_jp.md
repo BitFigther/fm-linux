@@ -100,14 +100,22 @@ gcc -Wall -O2 -D_GNU_SOURCE -o file_monitor file_monitor.c -lssl -lcrypto
 ```
 
 ## 除外パターン
-`--exclude` オプションで除外パターンを指定できます。カンマ区切りで複数指定や、`--exclude`の複数回指定も可能です:
+`--exclude` オプションで glob パターンを指定できます。カンマ区切りで複数指定や、`--exclude`の複数回指定も可能です:
 
 ```bash
-./file_monitor --baseline / --exclude /tmp/,/var/log/ --exclude /proc/
-./file_monitor --check /usr,/etc --exclude /tmp/
+./fm --baseline / --exclude '*.tmp' --exclude '/var/log/*'
+./fm --check /usr,/etc --exclude '*.log,*.tmp'
 ```
 
-以下のディレクトリは自動的に除外されます:
+パターンは `fnmatch()` を使ってフルパスとファイル名の両方に対してマッチします:
+
+| パターン | 除外対象 |
+|---------|---------|
+| `*.tmp` | 任意の場所にある `.tmp` で終わるファイル |
+| `/var/log/*` | `/var/log/` 直下のすべてのファイル |
+| `/etc/passwd` | 指定したパスのファイルのみ |
+
+以下のディレクトリは `--exclude` の設定に関わらず**自動的に除外**されます:
 - `/tmp/`
 - `/var/log/`
 - `/proc/`

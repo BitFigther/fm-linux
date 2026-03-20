@@ -22,4 +22,7 @@ clean:
 install: $(BIN)
 	sudo cp $(BIN) /usr/local/bin/
 
-.PHONY: all clean install
+test: $(BIN)
+	bash test/test_exclude.sh
+
+.PHONY: all clean install test

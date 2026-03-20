@@ -16,10 +16,13 @@ $(BUILDDIR):
 $(BIN): $(SOURCE)
 	$(CC) $(CFLAGS) -o $(BIN) $(SOURCE) $(LDFLAGS)
 
+test: all
+	bash test/test.sh $(BIN)
+
 clean:
 	rm -rf $(BUILDDIR)
 
 install: $(BIN)
 	sudo cp -f $(BIN) /usr/local/bin/
 
-.PHONY: all clean install
+.PHONY: all clean install test

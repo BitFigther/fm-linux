@@ -94,6 +94,28 @@ void add_exclude_patterns(const char *arg) {
     free(copy);
 }
 
+/*
+ * Returns 1 if fpath matches any user-specified --exclude pattern.
+ * Each pattern is matched against the full path and against the basename,
+ * using fnmatch() so that glob patterns like "*.tmp" or "/var/log/\*" work.
+ * The match is attempted with FNM_PATHNAME so that "*" does not cross "/"
+ * when the pattern contains a slash; without FNM_PATHNAME otherwise.
+ */
+static int is_user_excluded(const char *fpath) {
+    const char *basename = strrchr(fpath, '/');
+    basename = basename ? basename + 1 : fpath;
+
+    for (int i = 0; i < exclude_patterns_count; i++) {
+        const char *pat = exclude_patterns[i];
+        int flags = strchr(pat, '/') ? FNM_PATHNAME : 0;
+        if (fnmatch(pat, fpath, flags) == 0 ||
+            fnmatch(pat, basename, 0) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int calculate_md5(const char *filepath, unsigned char *result) {
     FILE *file = fopen(filepath, "rb");
     if (!file) {
@@ -165,11 +187,10 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
     if (typeflag != FTW_F) {
         return 0;
     }
-    for (int i = 0; i < exclude_patterns_count; i++) {
-        if (strstr(fpath, exclude_patterns[i])) {
-            return 0;
-        }
+    if (is_user_excluded(fpath)) {
+        return 0;
     }
+    /* Auto-exclude system paths that are unsafe or irrelevant to scan */
     if (strstr(fpath, "/tmp/") ||
         strstr(fpath, "/var/log/") ||
         strstr(fpath, "/proc/") ||
@@ -317,14 +338,7 @@ int load_baseline() {
 void report_deleted_files() {
     if (!file_checked) return;
     for (int i = 0; i < baseline_count; i++) {
-        int excluded = 0;
-        for (int j = 0; j < exclude_patterns_count; j++) {
-            if (strstr(baseline[i].filepath, exclude_patterns[j])) {
-                excluded = 1;
-                break;
-            }
-        }
-        if (excluded) continue;
+        if (is_user_excluded(baseline[i].filepath)) continue;
         if (!file_checked[i]) {
             printf("%sDeleted file: %s%s\n", COLOR_RED, baseline[i].filepath, COLOR_RESET);
             changes_detected++;

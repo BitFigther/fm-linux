@@ -56,6 +56,7 @@ int exclude_patterns_count = 0;
 int *file_checked = NULL;
 HashEntry *hash_table = NULL;
 int hash_table_size = 0;
+int unverified_files = 0; /* files skipped due to read/hash failure */
 
 static uint32_t fnv1a_hash(const char *str) {
     uint32_t hash = 2166136261u;
@@ -164,10 +165,15 @@ static int is_user_excluded(const char *fpath) {
     return 0;
 }
 
+/*
+ * Returns:  1 on success,
+ *          -1 if file cannot be opened (permission/not found),
+ *           0 if hash computation fails.
+ */
 int calculate_md5(const char *filepath, unsigned char *result) {
     FILE *file = fopen(filepath, "rb");
     if (!file) {
-        return 0;
+        return -1;
     }
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     if (!ctx) {
@@ -238,7 +244,14 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
         return 0;
     }
     unsigned char md5[MD5_DIGEST_LENGTH];
-    if (!calculate_md5(fpath, md5)) {
+    int md5_ret = calculate_md5(fpath, md5);
+    if (md5_ret != 1) {
+        if (md5_ret == -1) {
+            fprintf(stderr, "Warning: Cannot read file: %s (skipped)\n", fpath);
+        } else {
+            fprintf(stderr, "Warning: Hash calculation failed: %s (skipped)\n", fpath);
+        }
+        unverified_files++;
         return 0;
     }
     if (baseline_time == 0) {
@@ -572,6 +585,10 @@ int main(int argc, char *argv[]) {
                 err = 1;
             }
         }
+        if (unverified_files > 0) {
+            fprintf(stderr, "Warning: %d file(s) could not be read and were excluded from the baseline.\n",
+                    unverified_files);
+        }
         if (!err) save_baseline();
         ret = err;
     } else { /* mode == 'C' */
@@ -587,6 +604,7 @@ int main(int argc, char *argv[]) {
         } else {
             printf("Processing...\n");
             changes_detected = 0;
+            unverified_files = 0;
             int err = 0;
             for (int i = 0; i < target_dirs_count; i++) {
                 if (nftw(target_dirs[i], scan_file, 20, FTW_PHYS) == -1) {
@@ -597,9 +615,16 @@ int main(int argc, char *argv[]) {
             if (!err) {
                 report_deleted_files();
                 printf("\n=== Result ===\n");
+                if (unverified_files > 0) {
+                    fprintf(stderr, "Warning: %d file(s) could not be verified (read error or hash failure).\n",
+                            unverified_files);
+                }
                 if (changes_detected > 0) {
                     printf("Changes detected: %d file(s) changed\n", changes_detected);
                     ret = 2;
+                } else if (unverified_files > 0) {
+                    printf("No changes confirmed, but %d file(s) could not be verified.\n", unverified_files);
+                    ret = 1;
                 } else {
                     printf("No changes: No files were changed\n");
                     ret = 0;

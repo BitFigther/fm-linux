@@ -108,14 +108,14 @@ Color-coded display by default. Disable with `--no-color`.
 
 ## Exit Codes
 - `0`: No changes
-- `1`: Error
+- `1`: Error or some files could not be verified
 - `2`: Changes detected
 
 ## Notes and Limitations
 - Up to 8 baseline files can be specified. Any excess will be ignored with a warning.
 - Exclude patterns use `fnmatch` glob syntax (e.g., `*.log`, `/var/cache/*`). Multiple patterns can be specified comma-separated or with repeated `--exclude` flags.
 - MD5 calculation is strict but increases processing time. May take time if there are many files.
-- Files that cannot be read are automatically skipped.
+- Files that cannot be read emit a warning to stderr and are counted as unverified. The exit code will be `1` if unverified files exist with no detected changes.
 - Compatible with OpenSSL 3.0 (uses EVP API).
 - Colored output can be disabled with `--no-color`.
 - Options and directories can be given in any order.

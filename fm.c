@@ -4,6 +4,7 @@
  */
 
 #include <fnmatch.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -358,86 +359,110 @@ void add_target_dirs(const char *arg, char ***target_dirs, int *target_dirs_coun
 
 void print_usage(const char *program_name) {
     printf("Usage:\n");
-    printf("  %s --baseline|-B [directory(,directory...)] [options] : Create baseline (with MD5 hash)\n", program_name);
-    printf("  %s --check|-C [directory(,directory...)] [options]    : Check for changes (strict MD5 check)\n", program_name);
-    printf("  %s --reset|-R [options]                               : Reset baseline\n", program_name);
+    printf("  %s --baseline [directory...] [options] : Create baseline (with MD5 hash)\n", program_name);
+    printf("  %s --check [directory...]    [options] : Check for changes (strict MD5 check)\n", program_name);
+    printf("  %s --reset [options]                   : Reset baseline\n", program_name);
     printf("\n");
-    printf("Required options (choose one):\n");
+    printf("Required options (choose exactly one):\n");
     printf("  --baseline, -B    Create baseline\n");
-    printf("  --check, -C       Check for changes\n");
-    printf("  --reset, -R       Reset (delete) baseline file\n");
+    printf("  --check,    -C    Check for changes\n");
+    printf("  --reset,    -R    Reset (delete) baseline file\n");
     printf("\n");
     printf("Optional options:\n");
-    printf("  --exclude, -e <path(,path...)>    Exclude path(s) from scan\n");
-    printf("  --baseline-file, -b <path(,path...)> Specify one or more baseline file paths (comma-separated)\n");
-    printf("  --no-color                        Disable colored output\n");
+    printf("  --exclude, -e <path(,path...)>           Exclude path(s) from scan\n");
+    printf("  --baseline-file, -b <path(,path...)>     Specify baseline file path(s)\n");
+    printf("  --no-color                               Disable colored output\n");
     printf("\n");
-    printf("Note: MD5 hash calculation may take time, but enables strict change detection.\n");
-    printf("      You can specify multiple directories and --exclude/-e multiple times, each with a comma-separated list.\n");
+    printf("Note: Options and directories can appear in any order.\n");
+    printf("      --exclude/-e may be specified multiple times.\n");
 }
 
 int main(int argc, char *argv[]) {
     char **target_dirs = NULL;
     int target_dirs_count = 0;
-    int reset_requested = 0;
+    int baseline_file_explicit = 0;
+    int mode = 0; /* 'B'=baseline, 'C'=check, 'R'=reset */
 
     baseline_file_paths_count = 0;
-    int baseline_file_explicit = 0;
 
-    if (argc < 2) {
-        print_usage(argv[0]);
-        return 1;
-    }
+    static struct option long_options[] = {
+        {"baseline",      no_argument,       NULL, 'B'},
+        {"check",         no_argument,       NULL, 'C'},
+        {"reset",         no_argument,       NULL, 'R'},
+        {"exclude",       required_argument, NULL, 'e'},
+        {"baseline-file", required_argument, NULL, 'b'},
+        {"no-color",      no_argument,       NULL, 'N'},
+        {NULL, 0, NULL, 0}
+    };
 
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--no-color") == 0) {
-            use_color = 0;
-        } else if ((strcmp(argv[i], "--exclude") == 0 || strcmp(argv[i], "-e") == 0) && i + 1 < argc) {
-            add_exclude_patterns(argv[++i]);
-        } else if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
-            baseline_file_paths_count = 0;
-            add_baseline_file_paths(argv[++i]);
-            baseline_file_explicit = 1;
-        } else if (strcmp(argv[i], "--reset") == 0 || strcmp(argv[i], "-R") == 0) {
-            reset_requested = 1;
-        } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "-B") == 0 || strcmp(argv[i], "--check") == 0 || strcmp(argv[i], "-C") == 0) {
-            // skip, handled below
-        } else if (argv[i][0] != '-') {
-            add_target_dirs(argv[i], &target_dirs, &target_dirs_count);
+    int opt;
+    while ((opt = getopt_long(argc, argv, "BCRe:b:", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 'B':
+            case 'C':
+            case 'R':
+                if (mode != 0) {
+                    fprintf(stderr, "Error: --baseline, --check, and --reset are mutually exclusive.\n");
+                    return 1;
+                }
+                mode = opt;
+                break;
+            case 'e':
+                add_exclude_patterns(optarg);
+                break;
+            case 'b':
+                baseline_file_paths_count = 0;
+                add_baseline_file_paths(optarg);
+                baseline_file_explicit = 1;
+                break;
+            case 'N':
+                use_color = 0;
+                break;
+            default:
+                print_usage(argv[0]);
+                return 1;
         }
     }
+
+    /* Remaining non-option arguments are target directories */
+    for (int i = optind; i < argc; i++) {
+        add_target_dirs(argv[i], &target_dirs, &target_dirs_count);
+    }
+
     if (!baseline_file_explicit) {
         baseline_file_paths[baseline_file_paths_count++] = strdup(BASELINE_FILE);
     }
 
-    if (reset_requested) {
+    if (mode == 0) {
+        print_usage(argv[0]);
+        return 1;
+    }
+
+    if (mode == 'R') {
         int ret = 0;
         for (int fidx = 0; fidx < baseline_file_paths_count; fidx++) {
             if (unlink(baseline_file_paths[fidx]) == 0) {
                 printf("Baseline file deleted: %s\n", baseline_file_paths[fidx]);
             } else {
-                fprintf(stderr,"Baseline file not found: %s\n", baseline_file_paths[fidx]);
+                fprintf(stderr, "Baseline file not found: %s\n", baseline_file_paths[fidx]);
                 ret = 1;
             }
         }
         return ret;
     }
-    
-    if (target_dirs_count == 0 || 
-        !(strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0 || strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-C") == 0)) {
+
+    if (target_dirs_count == 0) {
+        fprintf(stderr, "Error: No target directory specified.\n");
         print_usage(argv[0]);
         if (exclude_patterns) {
-            for (int i = 0; i < exclude_patterns_count; i++) {
-                free(exclude_patterns[i]);
-            }
+            for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);
             free(exclude_patterns);
         }
-        if (target_dirs) free(target_dirs);
         return 1;
     }
 
     int ret = 0;
-    if (strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0) {
+    if (mode == 'B') {
         printf("Creating baseline for:");
         for (int i = 0; i < target_dirs_count; i++) {
             printf(" %s", target_dirs[i]);
@@ -452,7 +477,7 @@ int main(int argc, char *argv[]) {
         }
         if (!err) save_baseline();
         ret = err;
-    } else if (strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-C") == 0) {
+    } else { /* mode == 'C' */
         printf("Checking for changes in:");
         for (int i = 0; i < target_dirs_count; i++) {
             printf(" %s", target_dirs[i]);
@@ -472,7 +497,7 @@ int main(int argc, char *argv[]) {
                     err = 1;
                 }
             }
-            if (!err) {   
+            if (!err) {
                 report_deleted_files();
                 printf("\n=== Result ===\n");
                 if (changes_detected > 0) {
@@ -486,26 +511,17 @@ int main(int argc, char *argv[]) {
                 ret = 1;
             }
         }
-    } else {
-        print_usage(argv[0]);
-        ret = 1;
     }
-    // memory free
-    for (int i = 0; i < baseline_count; i++) {
-        free(baseline[i].filepath);
-    }
+
+    for (int i = 0; i < baseline_count; i++) free(baseline[i].filepath);
     free(baseline);
-    for (int i = 0; i < exclude_patterns_count; i++) {
-        free(exclude_patterns[i]);
-    }
+    for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);
     free(exclude_patterns);
     if (target_dirs) {
-        for (int i = 0; i < target_dirs_count; i++) free((void*)target_dirs[i]);
+        for (int i = 0; i < target_dirs_count; i++) free(target_dirs[i]);
         free(target_dirs);
     }
     if (file_checked) { free(file_checked); file_checked = NULL; }
-    for (int i = 0; i < baseline_file_paths_count; i++) {
-        free(baseline_file_paths[i]);
-    }
+    for (int i = 0; i < baseline_file_paths_count; i++) free(baseline_file_paths[i]);
     return ret;
 }

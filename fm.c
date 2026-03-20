@@ -222,6 +222,10 @@ void add_file_info(const char *filepath, time_t mtime, off_t size, const unsigne
         }
     }
     baseline[baseline_count].filepath = strdup(filepath);
+    if (!baseline[baseline_count].filepath) {
+        fprintf(stderr, "Memory allocation error (strdup)\n");
+        exit(1);
+    }
     baseline[baseline_count].mtime = mtime;
     baseline[baseline_count].size = size;
     memcpy(baseline[baseline_count].md5, md5, MD5_DIGEST_LENGTH);
@@ -229,6 +233,7 @@ void add_file_info(const char *filepath, time_t mtime, off_t size, const unsigne
 }
 
 int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
+    (void)ftwbuf;
     if (typeflag != FTW_F) {
         return 0;
     }
@@ -236,11 +241,11 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
         return 0;
     }
     /* Auto-exclude system paths that are unsafe or irrelevant to scan */
-    if (strstr(fpath, "/tmp/") ||
-        strstr(fpath, "/var/log/") ||
-        strstr(fpath, "/proc/") ||
-        strstr(fpath, "/sys/") ||
-        strstr(fpath, "/dev/")) {
+    if (strncmp(fpath, "/tmp/", 5) == 0 ||
+        strncmp(fpath, "/var/log/", 9) == 0 ||
+        strncmp(fpath, "/proc/", 6) == 0 ||
+        strncmp(fpath, "/sys/", 5) == 0 ||
+        strncmp(fpath, "/dev/", 5) == 0) {
         return 0;
     }
     unsigned char md5[MD5_DIGEST_LENGTH];
@@ -371,7 +376,7 @@ int load_baseline() {
             break;
         }
         baseline_capacity = baseline_count > 0 ? baseline_count : 1;
-        baseline = malloc(baseline_capacity * sizeof(FileInfo));
+        baseline = calloc(baseline_capacity, sizeof(FileInfo));
         if (!baseline) {
             fprintf(stderr, "Memory allocation error\n");
             fclose(fp);

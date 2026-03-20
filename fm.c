@@ -71,7 +71,7 @@ static uint32_t fnv1a_hash(const char *str) {
 static int hash_table_build(void) {
     /* Use table size = next power-of-2 >= 2*baseline_count to keep load < 0.5 */
     hash_table_size = 1024;
-    while (hash_table_size < baseline_count * 2) hash_table_size *= 2;
+    while ((size_t)hash_table_size < (size_t)baseline_count * 2) hash_table_size *= 2;
     hash_table = calloc(hash_table_size, sizeof(HashEntry));
     if (!hash_table) return 0;
     for (int i = 0; i < baseline_count; i++) {
@@ -497,6 +497,7 @@ int main(int argc, char *argv[]) {
     int target_dirs_count = 0;
     int baseline_file_explicit = 0;
     int mode = 0; /* 'B'=baseline, 'C'=check, 'R'=reset */
+    int ret = 0;
 
     baseline_file_paths_count = 0;
 
@@ -518,7 +519,7 @@ int main(int argc, char *argv[]) {
             case 'R':
                 if (mode != 0) {
                     fprintf(stderr, "Error: --baseline, --check, and --reset are mutually exclusive.\n");
-                    return 1;
+                    goto cleanup_exit_1;
                 }
                 mode = opt;
                 break;
@@ -526,6 +527,7 @@ int main(int argc, char *argv[]) {
                 add_exclude_patterns(optarg);
                 break;
             case 'b':
+                for (int i = 0; i < baseline_file_paths_count; i++) free(baseline_file_paths[i]);
                 baseline_file_paths_count = 0;
                 add_baseline_file_paths(optarg);
                 baseline_file_explicit = 1;
@@ -535,7 +537,7 @@ int main(int argc, char *argv[]) {
                 break;
             default:
                 print_usage(argv[0]);
-                return 1;
+                goto cleanup_exit_1;
         }
     }
 
@@ -545,16 +547,17 @@ int main(int argc, char *argv[]) {
     }
 
     if (!baseline_file_explicit) {
-        baseline_file_paths[baseline_file_paths_count++] = strdup(BASELINE_FILE);
+        char *def = strdup(BASELINE_FILE);
+        if (!def) { fprintf(stderr, "Memory allocation error\n"); goto cleanup_exit_1; }
+        baseline_file_paths[baseline_file_paths_count++] = def;
     }
 
     if (mode == 0) {
         print_usage(argv[0]);
-        return 1;
+        goto cleanup_exit_1;
     }
 
     if (mode == 'R') {
-        int ret = 0;
         for (int fidx = 0; fidx < baseline_file_paths_count; fidx++) {
             if (unlink(baseline_file_paths[fidx]) == 0) {
                 printf("Baseline file deleted: %s\n", baseline_file_paths[fidx]);
@@ -563,20 +566,15 @@ int main(int argc, char *argv[]) {
                 ret = 1;
             }
         }
-        return ret;
+        goto cleanup;
     }
 
     if (target_dirs_count == 0) {
         fprintf(stderr, "Error: No target directory specified.\n");
         print_usage(argv[0]);
-        if (exclude_patterns) {
-            for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);
-            free(exclude_patterns);
-        }
-        return 1;
+        goto cleanup_exit_1;
     }
 
-    int ret = 0;
     if (mode == 'B') {
         printf("Creating baseline for:");
         for (int i = 0; i < target_dirs_count; i++) {
@@ -639,7 +637,11 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+    goto cleanup;
 
+cleanup_exit_1:
+    ret = 1;
+cleanup:
     for (int i = 0; i < baseline_count; i++) free(baseline[i].filepath);
     free(baseline);
     for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);

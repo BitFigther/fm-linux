@@ -9,7 +9,7 @@
 - **高速・軽量**: C言語実装で大規模ディレクトリも高速スキャンのはず。。
 - **厳密な差分検出**: MD5ハッシュで内容変化を正確に検出
 - **柔軟な対象指定**: 任意ディレクトリ・複数ディレクトリ対応
-- **除外パターン**: サブディレクトリやファイル名の部分一致で除外可能
+- **除外パターン**: `fnmatch`ベースのglobパターンでファイルを除外（`*.tmp`、`/var/log/*`など）
 - **色付き出力**: 変更箇所を色分け表示（`--no-color`で無効化可）
 
 ## 必要なライブラリ
@@ -30,10 +30,14 @@ sudo dnf install openssl-devel
 ```bash
 make
 ```
+インストール（明示的実行、sudoが必要）:
+```bash
+sudo make install
+```
 または手動で:
 ```bash
-gcc -Wall -O2 -D_GNU_SOURCE -o fm fm.c -lssl -lcrypto
-sudo cp -f ./bulid/fm /usr/local/bin/
+gcc -Wall -O2 -D_GNU_SOURCE -o build/fm fm.c -lssl -lcrypto
+sudo cp -f ./build/fm /usr/local/bin/
 ```
 
 ## 引数
@@ -57,7 +61,9 @@ sudo cp -f ./bulid/fm /usr/local/bin/
 
 ### 任意オプション
 - `--exclude <パターン>` または `-e <パターン>`  
-  - 除外パターン（部分一致）。カンマ区切りや複数回指定可。
+  - `fnmatch`ベースのglobパターンで除外。フルパスとファイル名の両方に対してマッチング。
+    例: `*.log`、`/var/cache/*`、`*.tmp`
+  - カンマ区切りや複数回指定可（すべてのパターンが適用される）。
 - `--baseline-file` , `-b` <ファイル名>
   - ベースラインファイル名を指定。
 - `--no-color`  
@@ -82,16 +88,17 @@ fm -R
 ```
 
 ### 除外パターン
-`--exclude`で部分一致除外。カンマ区切りや複数回指定可。
+`--exclude`で`fnmatch`ベースのglobパターン除外。フルパスとファイル名の両方にマッチング。
+カンマ区切りや複数回指定可（すべてのパターンが適用される）。
 ```bash
-fm -B / --exclude /tmp/,/var/log/
-fm -C /usr,/etc --exclude /log/,/tmp/
+fm -B /usr --exclude "*.log"
+fm -C /usr,/etc --exclude "*.tmp,*.swp" --exclude "/var/cache/*"
 ```
-- 以下のディレクトリは自動除外
+- 以下のディレクトリは自動除外（`--exclude`指定に関わらず優先）
   - `/tmp/`
   - `/var/log/`
   - `/proc/`
-  -  `/sys/`
+  - `/sys/`
   - `/dev/`
 
 ### 色付き出力
@@ -104,12 +111,12 @@ fm -C /usr,/etc --exclude /log/,/tmp/
 
 ## 注意事項・制限
 - ベースラインファイル指定は最大8個。超過分は無視され警告。
-- 除外パターンは部分一致。複数指定・複数回指定可。
-- `--baseline-file`（`-b`）、`--exclude`（`-e`）を複数使用した場合**最後に指定した値のみ有効（上書き）**
+- 除外パターンは`fnmatch`ベースのglobパターン（例: `*.log`、`/var/cache/*`）。カンマ区切りまたは複数回の`--exclude`指定で複数パターン適用可。
 - MD5計算は厳密だが処理時間増加。ファイル数が多い場合は時間がかかる場合あり。
 - 読み取り不可ファイルは自動スキップ。
 - OpenSSL 3.0対応（EVP API使用）。
 - 色付き出力は`--no-color`で無効化可。
+- オプションとディレクトリは任意の順序で指定可能。
 
 ## ライセンス
 このプロジェクトはMITライセンスの条項の下で配布されています。ライセンスの詳細については、[LICENSE](LICENSE)ファイルをご覧ください。

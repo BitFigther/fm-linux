@@ -10,7 +10,7 @@
 - **Fast & Lightweight**: High-speed scanning of large directories with C implementation.
 - **Strict Change Detection**: Accurate detection of content changes using MD5 hash.
 - **Flexible Target Specification**: Supports arbitrary and multiple directories.
-- **Exclude Patterns**: Exclude by partial match of subdirectory or file name.
+- **Exclude Patterns**: Exclude files by glob pattern (`fnmatch`-based: supports `*.tmp`, `/var/log/*`, etc.).
 - **Colored Output**: Color-coded display of changes (can be disabled with `--no-color`).
 
 ## Required Libraries
@@ -31,9 +31,13 @@ sudo dnf install openssl-devel
 ```bash
 make
 ```
+Install (explicit, requires sudo):
+```bash
+sudo make install
+```
 Or manually:
 ```bash
-gcc -Wall -O2 -D_GNU_SOURCE -o fm fm.c -lssl -lcrypto
+gcc -Wall -O2 -D_GNU_SOURCE -o build/fm fm.c -lssl -lcrypto
 sudo cp -f ./build/fm /usr/local/bin/
 ```
 
@@ -58,7 +62,9 @@ Specify one of the following:
 
 ### Optional Options
 - `--exclude <pattern>` or `-e <pattern>`
-  - Exclude pattern (partial match). Can be specified as comma-separated or multiple times.
+  - Exclude pattern using `fnmatch` glob syntax. Matched against the full path and basename.
+    Examples: `*.log`, `/var/cache/*`, `*.tmp`
+  - Can be specified as comma-separated or multiple times (all patterns are applied).
 - `--baseline-file`, `-b` <filename>
   - Specify baseline file name.
 - `--no-color`
@@ -82,17 +88,20 @@ fm -R
 ```
 
 ### Exclude Patterns
-Use `--exclude` for partial match exclusion. Can be specified as comma-separated or multiple times.
+Use `--exclude` with glob patterns (`fnmatch`-based). Matched against the full path and basename.
+Can be specified as comma-separated or multiple times (all are applied).
 ```bash
-fm -B / --exclude /tmp/,/var/log/
-fm -C /usr,/etc --exclude /log/,/tmp/
+fm -B /usr --exclude "*.log"
+fm -C /usr,/etc --exclude "*.tmp,*.swp" --exclude "/var/cache/*"
 ```
-- The following directories are automatically excluded:
+- The following directories are automatically excluded (regardless of `--exclude`):
   - `/tmp/`
   - `/var/log/`
   - `/proc/`
   - `/sys/`
   - `/dev/`
+
+**Note**: Auto-excludes take priority. User `--exclude` patterns are evaluated after auto-excludes.
 
 ### Colored Output
 Color-coded display by default. Disable with `--no-color`.
@@ -104,12 +113,12 @@ Color-coded display by default. Disable with `--no-color`.
 
 ## Notes and Limitations
 - Up to 8 baseline files can be specified. Any excess will be ignored with a warning.
-- Exclude patterns use partial match. Multiple specifications and multiple times are allowed.
-- If you specify `--baseline-file` (`-b`) or `--exclude` (`-e`) multiple times, **only the last value is effective (overwritten)**.
+- Exclude patterns use `fnmatch` glob syntax (e.g., `*.log`, `/var/cache/*`). Multiple patterns can be specified comma-separated or with repeated `--exclude` flags.
 - MD5 calculation is strict but increases processing time. May take time if there are many files.
 - Files that cannot be read are automatically skipped.
 - Compatible with OpenSSL 3.0 (uses EVP API).
 - Colored output can be disabled with `--no-color`.
+- Options and directories can be given in any order.
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

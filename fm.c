@@ -5,6 +5,7 @@
 
 #include <fnmatch.h>
 #include <getopt.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,9 @@ int use_color = 1;
 
 #define BASELINE_FILE "/tmp/fm_baseline.dat"
 #define MAX_BASELINE_FILES 8
+#define BASELINE_MAGIC "FMBL"
+#define BASELINE_MAGIC_LEN 4
+#define BASELINE_VERSION ((uint32_t)1)
 char *baseline_file_paths[MAX_BASELINE_FILES];
 int baseline_file_paths_count = 0;
 
@@ -257,20 +261,33 @@ void save_baseline() {
             fprintf(stderr, "Failed to create baseline file: %s\n", baseline_file_paths[fidx]);
             continue;
         }
+        int write_err = 0;
+        /* Header: magic + version + timestamp + count */
+        uint32_t version = BASELINE_VERSION;
         time_t current_time = time(NULL);
-        fwrite(&current_time, sizeof(time_t), 1, fp);
-        fwrite(&baseline_count, sizeof(int), 1, fp);
-        for (int i = 0; i < baseline_count; i++) {
+        if (fwrite(BASELINE_MAGIC, BASELINE_MAGIC_LEN, 1, fp) != 1 ||
+            fwrite(&version, sizeof(uint32_t), 1, fp) != 1 ||
+            fwrite(&current_time, sizeof(time_t), 1, fp) != 1 ||
+            fwrite(&baseline_count, sizeof(int), 1, fp) != 1) {
+            write_err = 1;
+        }
+        for (int i = 0; i < baseline_count && !write_err; i++) {
             int path_len = strlen(baseline[i].filepath) + 1;
-            fwrite(&path_len, sizeof(int), 1, fp);
-            fwrite(baseline[i].filepath, path_len, 1, fp);
-            fwrite(&baseline[i].mtime, sizeof(time_t), 1, fp);
-            fwrite(&baseline[i].size, sizeof(off_t), 1, fp);
-            fwrite(baseline[i].md5, MD5_DIGEST_LENGTH, 1, fp);
+            if (fwrite(&path_len, sizeof(int), 1, fp) != 1 ||
+                fwrite(baseline[i].filepath, path_len, 1, fp) != 1 ||
+                fwrite(&baseline[i].mtime, sizeof(time_t), 1, fp) != 1 ||
+                fwrite(&baseline[i].size, sizeof(off_t), 1, fp) != 1 ||
+                fwrite(baseline[i].md5, MD5_DIGEST_LENGTH, 1, fp) != 1) {
+                write_err = 1;
+            }
         }
         fclose(fp);
-        printf("Create baseline file : %s \n", baseline_file_paths[fidx]);
-        printf("Baseline saved: %d files\n", baseline_count);
+        if (write_err) {
+            fprintf(stderr, "Error: Failed to write baseline file: %s\n", baseline_file_paths[fidx]);
+        } else {
+            printf("Create baseline file : %s \n", baseline_file_paths[fidx]);
+            printf("Baseline saved: %d files\n", baseline_count);
+        }
     }
 }
 
@@ -281,17 +298,39 @@ int load_baseline() {
         if (!fp) {
             continue;
         }
-        if (fread(&baseline_time, sizeof(time_t), 1, fp) != 1) {
+        /* Validate header: magic + version */
+        char magic[BASELINE_MAGIC_LEN];
+        uint32_t version;
+        if (fread(magic, BASELINE_MAGIC_LEN, 1, fp) != 1 ||
+            memcmp(magic, BASELINE_MAGIC, BASELINE_MAGIC_LEN) != 0) {
+            fprintf(stderr, "Error: Baseline file '%s' has invalid format (bad magic). "
+                    "Please recreate it with --baseline.\n", baseline_file_paths[fidx]);
             fclose(fp);
             break;
         }
-        if (fread(&baseline_count, sizeof(int), 1, fp) != 1) {
+        if (fread(&version, sizeof(uint32_t), 1, fp) != 1) {
+            fprintf(stderr, "Error: Baseline file '%s' is truncated.\n", baseline_file_paths[fidx]);
             fclose(fp);
             break;
         }
-        baseline_capacity = baseline_count;
+        if (version != BASELINE_VERSION) {
+            fprintf(stderr, "Error: Baseline file '%s' has unsupported version %u (expected %u). "
+                    "Please recreate it with --baseline.\n",
+                    baseline_file_paths[fidx], version, BASELINE_VERSION);
+            fclose(fp);
+            break;
+        }
+        if (fread(&baseline_time, sizeof(time_t), 1, fp) != 1 ||
+            fread(&baseline_count, sizeof(int), 1, fp) != 1) {
+            fprintf(stderr, "Error: Baseline file '%s' is corrupted (truncated header).\n",
+                    baseline_file_paths[fidx]);
+            fclose(fp);
+            break;
+        }
+        baseline_capacity = baseline_count > 0 ? baseline_count : 1;
         baseline = malloc(baseline_capacity * sizeof(FileInfo));
         if (!baseline) {
+            fprintf(stderr, "Memory allocation error\n");
             fclose(fp);
             break;
         }
@@ -299,6 +338,11 @@ int load_baseline() {
         for (int i = 0; i < baseline_count; i++) {
             int path_len;
             if (fread(&path_len, sizeof(int), 1, fp) != 1) { failed = 1; break; }
+            if (path_len <= 0 || path_len > 4096) {
+                fprintf(stderr, "Error: Baseline file '%s' is corrupted (invalid path length).\n",
+                        baseline_file_paths[fidx]);
+                failed = 1; break;
+            }
             baseline[i].filepath = malloc(path_len);
             if (!baseline[i].filepath || fread(baseline[i].filepath, path_len, 1, fp) != 1) { failed = 1; break; }
             if (fread(&baseline[i].mtime, sizeof(time_t), 1, fp) != 1 ||
@@ -307,9 +351,9 @@ int load_baseline() {
         }
         fclose(fp);
         if (failed) {
-            for (int i = 0; i < baseline_count; i++) {
-                free(baseline[i].filepath);
-            }
+            fprintf(stderr, "Error: Baseline file '%s' is corrupted. Please recreate it with --baseline.\n",
+                    baseline_file_paths[fidx]);
+            for (int i = 0; i < baseline_count; i++) free(baseline[i].filepath);
             free(baseline);
             baseline = NULL;
             break;
@@ -319,11 +363,12 @@ int load_baseline() {
         localtime_r(&baseline_time, &tm_baseline);
         strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &tm_baseline);
         printf("Baseline loaded: %d files (Created: %s)\n", baseline_count, time_str);
-        if (file_checked) { 
-            free(file_checked); file_checked = NULL; 
+        if (file_checked) {
+            free(file_checked); file_checked = NULL;
         }
-        file_checked = calloc(baseline_count, sizeof(int));
+        file_checked = calloc(baseline_count > 0 ? baseline_count : 1, sizeof(int));
         if (!file_checked) {
+            fprintf(stderr, "Memory allocation error\n");
             for (int i = 0; i < baseline_count; i++) free(baseline[i].filepath);
             free(baseline);
             baseline = NULL;

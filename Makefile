@@ -8,7 +8,7 @@ BUILDDIR=build
 SOURCE=fm.c
 BIN=$(BUILDDIR)/$(TARGET)
 
-all: $(BUILDDIR) $(BIN) install
+all: $(BUILDDIR) $(BIN)
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)

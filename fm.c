@@ -1,3 +1,4 @@
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +11,7 @@
 #include <openssl/md5.h>
 
 // プロトタイプ宣言
-void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count);
+void add_target_dirs(const char *arg, char ***target_dirs, int *target_dirs_count);
 
 // Structure to store baseline file information
 typedef struct {
@@ -271,11 +272,11 @@ int load_baseline() {
 
 
 // カンマ区切り文字列を分割してtarget_dirsに追加
-void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dirs_count) {
+void add_target_dirs(const char *arg, char ***target_dirs, int *target_dirs_count) {
     char *copy = strdup(arg);
     char *token = strtok(copy, ",");
     while (token) {
-        *target_dirs = realloc((void*)*target_dirs, sizeof(char*) * (*target_dirs_count + 1));
+        *target_dirs = realloc(*target_dirs, sizeof(char*) * (*target_dirs_count + 1));
         (*target_dirs)[(*target_dirs_count)++] = strdup(token);
         token = strtok(NULL, ",");
     }
@@ -285,80 +286,129 @@ void add_target_dirs(const char *arg, const char ***target_dirs, int *target_dir
 // Print usage
 void print_usage(const char *program_name) {
     printf("Usage:\n");
-    printf("  %s --baseline|-B [directory(,directory...)] [--exclude|-e path(,path...)] [--baseline-file|-b path] : Create baseline (with MD5 hash)\n", program_name);
-    printf("  %s --check|-c [directory(,directory...)] [--exclude|-e path(,path...)] [--baseline-file|-b path]    : Check for changes (strict MD5 check)\n", program_name);
-    printf("  %s --reset|-r [--baseline-file|-b path]                                                    : Reset baseline\n", program_name);
+    printf("  %s --baseline|-B <directory(,directory...)> [options] : Create baseline (with MD5 hash)\n", program_name);
+    printf("  %s --check|-C <directory(,directory...)> [options]    : Check for changes (strict MD5 check)\n", program_name);
+    printf("  %s --reset|-R [options]                               : Reset baseline\n", program_name);
+    printf("\n");
+    printf("Required options (choose one, mutually exclusive):\n");
+    printf("  --baseline, -B    Create baseline\n");
+    printf("  --check, -C       Check for changes\n");
+    printf("  --reset, -R       Reset (delete) baseline file\n");
+    printf("\n");
+    printf("Optional options:\n");
+    printf("  --exclude, -e <path(,path...)>       Exclude path(s) from scan\n");
+    printf("  --baseline-file, -b <path>           Specify baseline file path\n");
+    printf("  --help, -h                           Show this help message\n");
     printf("\n");
     printf("Examples:\n");
-    printf("  %s --baseline /,/usr --exclude /tmp/,/var/log/ --baseline-file /tmp/mybase.dat     : Create baseline for / and /usr, excluding /tmp/, /var/log/, baseline file is /tmp/mybase.dat\n", program_name);
-    printf("  %s -B /,/usr -e /tmp/,/var/log/ -b /tmp/mybase.dat                                 : (same as above, short options)\n", program_name);
-    printf("  %s --check /etc,/opt --exclude /proc/ --baseline-file /tmp/mybase.dat              : Check for changes in /etc and /opt, excluding /proc/, using /tmp/mybase.dat\n", program_name);
-    printf("  %s -c /etc,/opt -e /proc/ -b /tmp/mybase.dat                                      : (same as above, short options)\n", program_name);
-    printf("  %s --baseline /usr                                : Create baseline for /usr\n", program_name);
+    printf("  %s -B /etc,/usr -e /tmp/,/var/log/ -b /tmp/mybase.dat\n", program_name);
+    printf("  %s -C /etc,/usr -b /tmp/mybase.dat\n", program_name);
+    printf("  %s -R -b /tmp/mybase.dat\n", program_name);
     printf("\n");
     printf("Note: MD5 hash calculation may take time, but enables strict change detection.\n");
-    printf("      You can specify multiple directories and --exclude/-e multiple times, each with a comma-separated list.\n");
+    printf("      You can specify multiple directories and --exclude/-e multiple times.\n");
 }
 
 int main(int argc, char *argv[]) {
 
-    // --excludeオプション解析
-    // 複数ディレクトリ対応
-    const char **target_dirs = NULL;
+    char **target_dirs = NULL;
     int target_dirs_count = 0;
+    int mode = 0; // 0=none, 'B'=baseline, 'C'=check, 'R'=reset
     exclude_patterns_count = 0;
     exclude_patterns = NULL;
-    // まず--baseline-fileを探す
-    for (int i = 1; i < argc; i++) {
-        if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
-            baseline_file_path = argv[i+1];
-            break;
-        }
-    }
-    // --baseline-fileが指定されていなければデフォルトパスをセット
-    if (baseline_file_path == baseline_file_path_buf) {
-        set_default_baseline_file_path();
-    }
 
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;
     }
-    if (strcmp(argv[1], "--reset") == 0 || strcmp(argv[1], "-r") == 0) {
-        if (unlink(baseline_file_path) == 0) {
-            printf("Baseline file deleted\n");
-        } else {
-            printf("Baseline file not found\n");
+
+    static struct option long_options[] = {
+        {"baseline",      no_argument,       0, 'B'},
+        {"check",         no_argument,       0, 'C'},
+        {"reset",         no_argument,       0, 'R'},
+        {"exclude",       required_argument, 0, 'e'},
+        {"baseline-file", required_argument, 0, 'b'},
+        {"help",          no_argument,       0, 'h'},
+        {0, 0, 0, 0}
+    };
+
+    int opt;
+    while ((opt = getopt_long(argc, argv, "BCRe:b:h", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 'B':
+            case 'C':
+            case 'R':
+                if (mode != 0) {
+                    fprintf(stderr, "Error: --baseline, --check, and --reset are mutually exclusive.\n");
+                    return 1;
+                }
+                mode = opt;
+                break;
+            case 'e':
+                add_exclude_patterns(optarg);
+                break;
+            case 'b':
+                baseline_file_path = optarg;
+                break;
+            case 'h':
+                print_usage(argv[0]);
+                return 0;
+            default:
+                print_usage(argv[0]);
+                return 1;
         }
-        return 0;
     }
 
-    // 残りのオプション解析
-    for (int i = 1; i < argc; i++) {
-        if ((strcmp(argv[i], "--exclude") == 0 || strcmp(argv[i], "-e") == 0) && i + 1 < argc) {
-            add_exclude_patterns(argv[++i]);
-        } else if ((strcmp(argv[i], "--baseline-file") == 0 || strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
-            i++; // すでに処理済みなのでスキップ
-        } else if (strcmp(argv[i], "--baseline") == 0 || strcmp(argv[i], "-B") == 0 || strcmp(argv[i], "--check") == 0 || strcmp(argv[i], "-c") == 0) {
-            // skip, handled below
-        } else if (argv[i][0] != '-') {
-            add_target_dirs(argv[i], &target_dirs, &target_dirs_count);
-        }
+    // Collect positional arguments as target directories
+    for (int i = optind; i < argc; i++) {
+        add_target_dirs(argv[i], &target_dirs, &target_dirs_count);
     }
 
-    if (target_dirs_count == 0 || 
-        !(strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0 || strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-c") == 0)) {
+    // --baseline-fileが指定されていなければデフォルトパスをセット
+    if (baseline_file_path == baseline_file_path_buf) {
+        set_default_baseline_file_path();
+    }
+
+    if (mode == 0) {
+        fprintf(stderr, "Error: Please specify --baseline, --check, or --reset.\n\n");
         print_usage(argv[0]);
         if (exclude_patterns) {
             for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);
             free(exclude_patterns);
         }
-        if (target_dirs) free(target_dirs);
+        if (target_dirs) {
+            for (int i = 0; i < target_dirs_count; i++) free(target_dirs[i]);
+            free(target_dirs);
+        }
+        return 1;
+    }
+
+    if (mode == 'R') {
+        if (unlink(baseline_file_path) == 0) {
+            printf("Baseline file deleted: %s\n", baseline_file_path);
+        } else {
+            fprintf(stderr, "Baseline file not found: %s\n", baseline_file_path);
+        }
+        for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);
+        free(exclude_patterns);
+        if (target_dirs) {
+            for (int i = 0; i < target_dirs_count; i++) free(target_dirs[i]);
+            free(target_dirs);
+        }
+        return 0;
+    }
+
+    if (target_dirs_count == 0) {
+        fprintf(stderr, "Error: No target directory specified.\n\n");
+        print_usage(argv[0]);
+        for (int i = 0; i < exclude_patterns_count; i++) free(exclude_patterns[i]);
+        free(exclude_patterns);
+        free(target_dirs);
         return 1;
     }
 
     int ret = 0;
-    if (strcmp(argv[1], "--baseline") == 0 || strcmp(argv[1], "-B") == 0) {
+    if (mode == 'B') {
         printf("Creating baseline for:");
         for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
         printf("\nProcessing...\n");
@@ -372,13 +422,13 @@ int main(int argc, char *argv[]) {
         }
         if (!err) save_baseline();
         ret = err;
-    } else if (strcmp(argv[1], "--check") == 0 || strcmp(argv[1], "-c") == 0) {
+    } else if (mode == 'C') {
         printf("Checking for changes in:");
         for (int i = 0; i < target_dirs_count; i++) printf(" %s", target_dirs[i]);
         printf("\n");
         if (!load_baseline()) {
             printf("Error: Baseline file not found.\n");
-            printf("Please create a baseline first using --baseline option.\n");
+            printf("Please create a baseline first using --baseline or -B option.\n");
             ret = 1;
         } else {
             printf("Processing...\n");
@@ -394,18 +444,15 @@ int main(int argc, char *argv[]) {
                 printf("\n=== Result ===\n");
                 if (changes_detected > 0) {
                     printf("Changes detected: %d file(s) changed\n", changes_detected);
-                    ret = 2; // Exit code for changes detected
+                    ret = 2;
                 } else {
                     printf("No changes: No files were changed\n");
-                    ret = 0; // Exit code for no changes
+                    ret = 0;
                 }
             } else {
                 ret = 1;
             }
         }
-    } else {
-        print_usage(argv[0]);
-        ret = 1;
     }
     // Free memory
     for (int i = 0; i < baseline_count; i++) {

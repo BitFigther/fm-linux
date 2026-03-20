@@ -39,6 +39,12 @@ typedef struct {
     unsigned char md5[MD5_DIGEST_LENGTH];
 } FileInfo;
 
+/* Hash table entry: maps filepath to baseline array index */
+typedef struct {
+    const char *key; /* points to baseline[idx].filepath; NULL = empty slot */
+    int idx;
+} HashEntry;
+
 // Global variables
 FileInfo *baseline = NULL;
 int baseline_count = 0;
@@ -48,6 +54,44 @@ time_t baseline_time = 0;
 char **exclude_patterns = NULL;
 int exclude_patterns_count = 0;
 int *file_checked = NULL;
+HashEntry *hash_table = NULL;
+int hash_table_size = 0;
+
+static uint32_t fnv1a_hash(const char *str) {
+    uint32_t hash = 2166136261u;
+    while (*str) {
+        hash ^= (uint8_t)*str++;
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+/* Build hash table from the current baseline array. Must be called after baseline is loaded. */
+static int hash_table_build(void) {
+    /* Use table size = next power-of-2 >= 2*baseline_count to keep load < 0.5 */
+    hash_table_size = 1024;
+    while (hash_table_size < baseline_count * 2) hash_table_size *= 2;
+    hash_table = calloc(hash_table_size, sizeof(HashEntry));
+    if (!hash_table) return 0;
+    for (int i = 0; i < baseline_count; i++) {
+        uint32_t h = fnv1a_hash(baseline[i].filepath) % (uint32_t)hash_table_size;
+        while (hash_table[h].key != NULL) h = (h + 1) % (uint32_t)hash_table_size;
+        hash_table[h].key = baseline[i].filepath;
+        hash_table[h].idx = i;
+    }
+    return 1;
+}
+
+/* Look up filepath in the hash table. Returns index into baseline[], or -1 if not found. */
+static int hash_table_lookup(const char *filepath) {
+    if (!hash_table) return -1;
+    uint32_t h = fnv1a_hash(filepath) % (uint32_t)hash_table_size;
+    while (hash_table[h].key != NULL) {
+        if (strcmp(hash_table[h].key, filepath) == 0) return hash_table[h].idx;
+        h = (h + 1) % (uint32_t)hash_table_size;
+    }
+    return -1;
+}
 
 void add_baseline_file_paths(const char *arg) {
     char *copy = strdup(arg);
@@ -178,15 +222,6 @@ void add_file_info(const char *filepath, time_t mtime, off_t size, const unsigne
     baseline_count++;
 }
 
-FileInfo* find_file_info(const char *filepath) {
-    for (int i = 0; i < baseline_count; i++) {
-        if (strcmp(baseline[i].filepath, filepath) == 0) {
-            return &baseline[i];
-        }
-    }
-    return NULL;
-}
-
 int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
     if (typeflag != FTW_F) {
         return 0;
@@ -210,15 +245,10 @@ int scan_file(const char *fpath, const struct stat *sb, int typeflag, struct FTW
         add_file_info(fpath, sb->st_mtime, sb->st_size, md5);
         return 0;
     }
-    FileInfo *existing = find_file_info(fpath);
-    if (existing) {
-        for (int i = 0; i < baseline_count; i++) {
-            if (strcmp(baseline[i].filepath, fpath) == 0) {
-                file_checked[i] = 1;
-                break;
-            }
-        }
-        
+    int idx = hash_table_lookup(fpath);
+    if (idx >= 0) {
+        file_checked[idx] = 1;
+        FileInfo *existing = &baseline[idx];
         int hash_changed = memcmp(existing->md5, md5, MD5_DIGEST_LENGTH) != 0;
         int mtime_changed = existing->mtime != sb->st_mtime;
         int size_changed = existing->size != sb->st_size;
@@ -369,6 +399,14 @@ int load_baseline() {
         file_checked = calloc(baseline_count > 0 ? baseline_count : 1, sizeof(int));
         if (!file_checked) {
             fprintf(stderr, "Memory allocation error\n");
+            for (int i = 0; i < baseline_count; i++) free(baseline[i].filepath);
+            free(baseline);
+            baseline = NULL;
+            break;
+        }
+        if (!hash_table_build()) {
+            fprintf(stderr, "Memory allocation error (hash table)\n");
+            free(file_checked); file_checked = NULL;
             for (int i = 0; i < baseline_count; i++) free(baseline[i].filepath);
             free(baseline);
             baseline = NULL;
@@ -581,6 +619,7 @@ int main(int argc, char *argv[]) {
         free(target_dirs);
     }
     if (file_checked) { free(file_checked); file_checked = NULL; }
+    if (hash_table) { free(hash_table); hash_table = NULL; }
     for (int i = 0; i < baseline_file_paths_count; i++) free(baseline_file_paths[i]);
     return ret;
 }

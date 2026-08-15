@@ -1,23 +1,19 @@
 
-CC=gcc
-CFLAGS=-Wall -O2 -D_GNU_SOURCE
-LDFLAGS=-lssl -lcrypto
-
 TARGET=fm
 BUILDDIR=build
-SOURCE=fm.c
 BIN=$(BUILDDIR)/$(TARGET)
+GOFILES=$(shell find . -name '*.go' -not -path './$(BUILDDIR)/*')
 
 all: $(BUILDDIR) $(BIN)
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
-$(BIN): $(SOURCE)
-	$(CC) $(CFLAGS) -o $(BIN) $(SOURCE) $(LDFLAGS)
+$(BIN): $(GOFILES) go.mod go.sum
+	go build -o $(BIN) .
 
-test: all
-	bash test/test.sh $(BIN)
+test:
+	go test -v ./...
 
 clean:
 	rm -rf $(BUILDDIR)

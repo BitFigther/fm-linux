@@ -2,31 +2,19 @@
 # fm-linux
 
 ## 概要
-- ファイル改変を検出するC言語製コマンドラインツールです。
+- ファイル改変を検出するGo製コマンドラインツールです。
 - ソフトウェア導入やパッチ適用後の差分確認を想定して作成しました。
 
 ## 特徴
-- **高速・軽量**: C言語実装で大規模ディレクトリも高速スキャンのはず。。
 - **厳密な差分検出**: MD5ハッシュで内容変化を正確に検出
 - **柔軟な対象指定**: 任意ディレクトリ・複数ディレクトリ対応
-- **除外パターン**: `fnmatch`ベースのglobパターンでファイルを除外（`*.tmp`、`/var/log/*`など）
+- **除外パターン**: `filepath.Match`ベースのglobパターンでファイルを除外（`*.tmp`、`/var/log/*`など）
 - **色付き出力**: 変更箇所を色分け表示（`--no-color`で無効化可）
 
-## 必要なライブラリ
-- OpenSSL (`libssl-dev`または`openssl-devel`)
-  - OpenSSL 1.1.x / 3.0.x対応
+## 必要環境
+- Go 1.25以降
 
-### Ubuntu/Debian
-```bash
-sudo apt-get install libssl-dev
-```
-
-### CentOS/RHEL
-```bash
-sudo dnf install openssl-devel
-```
-
-## コンパイル
+## ビルド
 ```bash
 make
 ```
@@ -36,63 +24,67 @@ sudo make install
 ```
 または手動で:
 ```bash
-gcc -Wall -O2 -D_GNU_SOURCE -o build/fm fm.c -lssl -lcrypto
+go build -o build/fm .
 sudo cp -f ./build/fm /usr/local/bin/
 ```
 
-## 引数
+## 使い方
 
-### 必須オプション
-- 以下のうち1つは指定してください
-- `--baseline` , `-B` <ディレクトリ(,ディレクトリ...)>
-  - ベースライン作成モード。指定したディレクトリ配下のファイル情報を記録します。
-  - デフォルトで`/tmp/fm_baseline.dat` で保存。
+```
+fm [flags]
+fm [command]
+```
+
+### コマンド
+- `baseline <ディレクトリ...>`
+  - 指定したディレクトリ配下のファイル情報を記録し、ベースラインを作成します。
+  - デフォルトで`/tmp/fm_baseline.dat`に保存。
   - `--baseline-file`で任意のパスを指定可。
 
-- `--check` , `-C` <ディレクトリ(,ディレクトリ...)>
-  - 変更チェックモード。ベースラインと比較して変更・新規・削除ファイルを検出します。
+- `check <ディレクトリ...>`
+  - ベースラインと比較して変更・新規・削除ファイルを検出します。
   - `--baseline-file`で任意のベースラインファイルを指定可。
 
-- `--reset` または `-R`  
+- `reset`
   - ベースラインファイルを削除（リセット）します。
   - `--baseline-file`で任意のベースラインファイルを指定可。
-  - デフォルトは`/tmp/fm_baseline.dat` を削除します。
+  - デフォルトは`/tmp/fm_baseline.dat`を削除します。
 
-
-### 任意オプション
-- `--exclude <パターン>` または `-e <パターン>`  
-  - `fnmatch`ベースのglobパターンで除外。フルパスとファイル名の両方に対してマッチング。
+### フラグ（全コマンド共通）
+- `--exclude`, `-e` <パターン>
+  - globパターン（`path/filepath.Match`）で除外。フルパスとファイル名の両方に対してマッチング。
     例: `*.log`、`/var/cache/*`、`*.tmp`
   - カンマ区切りや複数回指定可（すべてのパターンが適用される）。
-- `--baseline-file` , `-b` <ファイル名>
-  - ベースラインファイル名を指定。
-- `--no-color`  
+- `--baseline-file`, `-b` <パス(,パス...)>
+  - ベースラインファイルのパスをカンマ区切りで指定。
+- `--no-color`
   - 色付き出力を無効化。
 
-
+コマンドの詳細は[docs/fm.md](docs/fm.md)を参照してください。
 
 ## 使用例
+
 ### 1. ベースライン作成(作業前のベースになるファイル情報)
 ```bash
-fm -B /etc,/usr
+fm baseline /etc /usr
 ```
 
 ### 2. 変更チェック
 ```bash
-fm -C /etc,/usr
+fm check /etc /usr
 ```
 
 ### 3. ベースラインリセット
 ```bash
-fm -R
+fm reset
 ```
 
 ### 除外パターン
-`--exclude`で`fnmatch`ベースのglobパターン除外。フルパスとファイル名の両方にマッチング。
+`--exclude`でglobパターン除外。フルパスとファイル名の両方にマッチング。
 カンマ区切りや複数回指定可（すべてのパターンが適用される）。
 ```bash
-fm -B /usr --exclude "*.log"
-fm -C /usr,/etc --exclude "*.tmp,*.swp" --exclude "/var/cache/*"
+fm baseline /usr --exclude "*.log"
+fm check /usr /etc --exclude "*.tmp,*.swp" --exclude "/var/cache/*"
 ```
 - 以下のディレクトリは自動除外（`--exclude`指定に関わらず優先）
   - `/tmp/`
@@ -111,12 +103,10 @@ fm -C /usr,/etc --exclude "*.tmp,*.swp" --exclude "/var/cache/*"
 
 ## 注意事項・制限
 - ベースラインファイル指定は最大8個。超過分は無視され警告。
-- 除外パターンは`fnmatch`ベースのglobパターン（例: `*.log`、`/var/cache/*`）。カンマ区切りまたは複数回の`--exclude`指定で複数パターン適用可。
+- 除外パターンはglobパターン（例: `*.log`、`/var/cache/*`）。カンマ区切りまたは複数回の`--exclude`指定で複数パターン適用可。
 - MD5計算は厳密だが処理時間増加。ファイル数が多い場合は時間がかかる場合あり。
 - 読み取り不可のファイルはstderrに警告を出力し、未検証としてカウントされる。未検証ファイルがある場合は終了コード`1`を返す。
-- OpenSSL 3.0対応（EVP API使用）。
 - 色付き出力は`--no-color`で無効化可。
-- オプションとディレクトリは任意の順序で指定可能。
 
 ## ライセンス
 このプロジェクトはMITライセンスの条項の下で配布されています。ライセンスの詳細については、[LICENSE](LICENSE)ファイルをご覧ください。
